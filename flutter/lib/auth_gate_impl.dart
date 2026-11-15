@@ -301,6 +301,13 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: _passwordController.text),
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password updated successfully. Please sign in again.'),
+          ),
+        );
+      }
     } on AuthException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -366,8 +373,24 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
                         ),
                       ),
                       validator: (value) {
-                        if ((value ?? '').length < 6) {
-                          return 'Use at least 6 characters';
+                        final password = value ?? '';
+                        if (password.length < 12) {
+                          return 'Use at least 12 characters';
+                        }
+                        final hasUppercase = password.contains(RegExp(r'[A-Z]'));
+                        final hasLowercase = password.contains(RegExp(r'[a-z]'));
+                        final hasNumber = password.contains(RegExp(r'[0-9]'));
+                        final hasSymbol = password.contains(
+                          RegExp(r'[^A-Za-z0-9]'),
+                        );
+                        final categoryCount = [
+                          hasUppercase,
+                          hasLowercase,
+                          hasNumber,
+                          hasSymbol,
+                        ].where((flag) => flag).length;
+                        if (categoryCount < 3) {
+                          return 'Use 3 of 4 character types';
                         }
                         return null;
                       },
