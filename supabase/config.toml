@@ -1,0 +1,7 @@
+project_id = "wohfevsfhzgxejcfcrek"
+
+[functions.family-invitations]
+verify_jwt = false
+
+[functions.scam-intelligence]
+verify_jwt = false

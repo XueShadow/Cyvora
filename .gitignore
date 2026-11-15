@@ -1,0 +1,42 @@
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/build/
+**/.metadata
+**/pubspec.lock
+**/coverage/
+**/.packages
+**/.symlinks/
+**/android/local.properties
+**/android/key.properties
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.p8
+
+# Gradle / Android
+**/.gradle/
+**/captures/
+**/local.properties
+**/GeneratedPluginRegistrant.java
+**/.cxx/
+
+# Node / web
+node_modules/
+.npm/
+
+# Env / secrets
+.env
+.env.*
+*.pem
+*.crt
+*.key
