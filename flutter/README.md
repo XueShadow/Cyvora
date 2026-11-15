@@ -67,7 +67,10 @@ include the app origin in **Authentication → URL Configuration → Redirect UR
 
 ## GitHub release deployment
 
-The app includes a GitHub Actions workflow at `.github/workflows/android-release.yml` for building a signed Android App Bundle and attaching it to a GitHub Release.
+The repository-level GitHub Actions workflow at
+[`../.github/workflows/android-release.yml`](../.github/workflows/android-release.yml)
+builds a signed Android APK for direct installation and an Android App Bundle
+for Google Play, then attaches both files to a GitHub Release.
 
 Before the workflow can run, add these repository secrets in GitHub:
 
@@ -89,7 +92,9 @@ keytool -genkeypair -v -keystore android/app/release-keystore.jks \
 
 Then base64-encode the file and store it as `ANDROID_KEYSTORE_BASE64` in GitHub. The workflow writes `android/key.properties` automatically during the build, but the real keystore is never committed and must be provided through GitHub secrets.
 
-Trigger a release by pushing a tag such as `v1.0.1` or by running the workflow manually with a tag name like `v1.0.1`.
+Update the app version in `pubspec.yaml`, then trigger a release by pushing a
+tag such as `v1.0.2`, or run the workflow manually with a tag name. Download the
+APK for direct installation on Android; use the AAB for Google Play.
 
 ## Dashboard integrations
 

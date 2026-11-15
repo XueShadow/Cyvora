@@ -47,13 +47,13 @@ jobs:
       - name: Decode signing keystore
         shell: bash
         run: |
-          mkdir -p android
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-keystore.jks
+          mkdir -p flutter/android/app
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > flutter/android/app/release-keystore.jks
 
       - name: Write key.properties
         shell: bash
         run: |
-          cat > android/key.properties <<EOF
+          cat > flutter/android/key.properties <<EOF
           storeFile=app/release-keystore.jks
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
@@ -61,25 +61,32 @@ jobs:
           EOF
 
       - name: Fetch Flutter dependencies
+        working-directory: flutter
         shell: bash
         run: flutter pub get
 
       - name: Build Android App Bundle
+        working-directory: flutter
         shell: bash
         run: flutter build appbundle --release
+
+      - name: Build Android APK
+        working-directory: flutter
+        shell: bash
+        run: flutter build apk --release
 
       - name: Resolve release tag
         id: release_tag
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag_name }}" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG_NAME="${{ github.event.inputs.tag_name }}"
           else
             TAG_NAME="${GITHUB_REF_NAME}"
           fi
 
-          if [ -z "$TAG_NAME" ]; then
-            echo "Release tag is empty. Re-run the workflow with a valid tag or push a v* tag."
+          if [[ -z "$TAG_NAME" || "$TAG_NAME" != v* ]]; then
+            echo "A release tag starting with v is required (for example: v1.0.2)."
             exit 1
           fi
 
@@ -91,4 +98,5 @@ jobs:
           tag_name: ${{ steps.release_tag.outputs.tag_name }}
           generate_release_notes: true
           files: |
-            build/app/outputs/bundle/release/app-release.aab
+            flutter/build/app/outputs/bundle/release/app-release.aab
+            flutter/build/app/outputs/flutter-apk/app-release.apk

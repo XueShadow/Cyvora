@@ -1,0 +1,46 @@
+# Cyvora
+
+Cyvora is a Flutter mobile app with Supabase authentication, scam analysis, and
+family security features.
+
+## Repository layout
+
+- [`flutter/`](flutter/) - Flutter application and app-specific setup guide.
+- [`supabase/`](supabase/) - Supabase migrations and Edge Functions.
+- [`laravel/`](laravel/) - Laravel project.
+
+## Run the app
+
+Install Flutter, then run these commands from the repository root:
+
+```powershell
+cd flutter
+flutter pub get
+flutter run
+```
+
+Supabase configuration, backend setup, and app details are in
+[`flutter/README.md`](flutter/README.md).
+
+## Download an Android release
+
+The GitHub Actions workflow builds a signed Android APK for direct installation
+and an Android App Bundle (AAB) for Google Play. Releases are published on the
+[GitHub Releases page](https://github.com/XueShadow/Cyvora/releases).
+
+To publish a release:
+
+1. Configure the repository secrets `ANDROID_KEYSTORE_BASE64`,
+   `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. See the keystore
+   instructions in [`flutter/README.md`](flutter/README.md).
+2. Update the app version in [`flutter/pubspec.yaml`](flutter/pubspec.yaml).
+3. Push a version tag, for example:
+
+   ```powershell
+   git tag v1.0.2
+   git push origin v1.0.2
+   ```
+
+The workflow builds both release packages and attaches them to the GitHub
+Release for that tag. It can also be started manually from the Actions tab with
+a release tag.
