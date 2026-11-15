@@ -109,8 +109,17 @@ and `KEY_PASSWORD` with the passwords you chose, and `KEY_ALIAS` with
 never commit the keystore or its passwords.
 
 Update the app version in `pubspec.yaml`, then trigger a release by pushing a
-tag such as `v1.0.2`, or run the workflow manually with a tag name. Download the
-APK for direct installation on Android; use the AAB for Google Play.
+tag such as `v1.0.2`, or run the workflow manually with a tag name. Use the
+signed APK from the GitHub Release for direct installation and the AAB for
+Google Play. Debug APKs are for development and are signed with a debug key;
+do not distribute them. Local release APK/AAB builds require a valid
+`android/key.properties` and release keystore.
+
+Play Protect may still warn about a sideloaded app, especially one that offers
+notification scanning. A production signature does not establish Play Protect
+reputation by itself. For testing on devices, use a Google Play internal testing
+track when possible; keep Play Protect enabled and install only builds from a
+source you trust.
 
 ## Dashboard integrations
 

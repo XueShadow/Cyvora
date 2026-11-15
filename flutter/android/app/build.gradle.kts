@@ -13,11 +13,29 @@ if (keystorePropertiesFile.exists()) {
     FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
-val hasReleaseSigningConfig = keystorePropertiesFile.exists() &&
-    !keystoreProperties["storeFile"].toString().isBlank() &&
-    !keystoreProperties["storePassword"].toString().isBlank() &&
-    !keystoreProperties["keyAlias"].toString().isBlank() &&
-    !keystoreProperties["keyPassword"].toString().isBlank()
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+val hasReleaseSigningConfig = keystorePropertiesFile.isFile &&
+    !releaseStoreFile.isNullOrBlank() &&
+    rootProject.file(releaseStoreFile).isFile &&
+    listOf("storePassword", "keyAlias", "keyPassword")
+        .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
+
+val validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    doLast {
+        if (!hasReleaseSigningConfig) {
+            throw GradleException(
+                "Android release signing is not configured. Add a valid " +
+                    "flutter/android/key.properties and release keystore before building a release."
+            )
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease") {
+        dependsOn(validateReleaseSigning)
+    }
+}
 
 android {
     namespace = "com.example.cyvora_mobile"
@@ -38,27 +56,12 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            if (hasReleaseSigningConfig) {
-                val storeFilePath = keystoreProperties["storeFile"] as? String
-                if (!storeFilePath.isNullOrBlank()) {
-                    storeFile = rootProject.file(storeFilePath)
-                }
-                storePassword = keystoreProperties["storePassword"] as? String ?: ""
-                keyAlias = keystoreProperties["keyAlias"] as? String ?: ""
-                keyPassword = keystoreProperties["keyPassword"] as? String ?: ""
-            } else {
-                logger.lifecycle(
-                    "Release keystore is not configured; using the Android debug keystore for local bundle validation only. " +
-                        "Generate a production keystore and add android/key.properties before publishing."
-                )
-                val debugKeystorePath = File(System.getProperty("user.home"), ".android/debug.keystore")
-                if (debugKeystorePath.exists()) {
-                    storeFile = debugKeystorePath
-                    storePassword = "android"
-                    keyAlias = "androiddebugkey"
-                    keyPassword = "android"
-                }
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
     }
@@ -71,10 +74,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = if (hasReleaseSigningConfig) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
