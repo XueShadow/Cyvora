@@ -37,6 +37,7 @@ node_modules/
 # Env / secrets
 .env
 .env.*
+!laravel/.env.example
 *.pem
 *.crt
 *.key
