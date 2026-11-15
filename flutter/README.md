@@ -79,18 +79,34 @@ Before the workflow can run, add these repository secrets in GitHub:
 - `KEY_ALIAS`: Key alias used for the release signing key.
 - `KEY_PASSWORD`: Password for the release key alias.
 
-Create the keystore locally and export it with:
+From the `flutter` directory, create a keystore locally. Keep a secure backup
+of this file and store both passwords in a password manager; Android updates
+must continue using the same signing key.
 
-```bash
-keytool -genkeypair -v -keystore android/app/release-keystore.jks \
-  -storetype JKS \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000 \
-  -alias YOUR_KEY_ALIAS
+```powershell
+keytool -genkeypair -v `
+  -keystore .\android\app\release-keystore.jks `
+  -storetype JKS `
+  -keyalg RSA `
+  -keysize 2048 `
+  -validity 10000 `
+  -alias cyvora-release
 ```
 
-Then base64-encode the file and store it as `ANDROID_KEYSTORE_BASE64` in GitHub. The workflow writes `android/key.properties` automatically during the build, but the real keystore is never committed and must be provided through GitHub secrets.
+Keytool prompts for the keystore password, key password, and certificate details.
+To copy the encoded keystore without printing it in the terminal:
+
+```powershell
+[Convert]::ToBase64String(
+  [IO.File]::ReadAllBytes('.\android\app\release-keystore.jks')
+) | Set-Clipboard
+```
+
+In the repository's **Settings → Secrets and variables → Actions**, create
+`ANDROID_KEYSTORE_BASE64` by pasting the clipboard value, `KEYSTORE_PASSWORD`
+and `KEY_PASSWORD` with the passwords you chose, and `KEY_ALIAS` with
+`cyvora-release`. The workflow writes `android/key.properties` automatically;
+never commit the keystore or its passwords.
 
 Update the app version in `pubspec.yaml`, then trigger a release by pushing a
 tag such as `v1.0.2`, or run the workflow manually with a tag name. Download the
