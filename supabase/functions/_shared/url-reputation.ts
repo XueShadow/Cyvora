@@ -29,7 +29,7 @@ export type UrlReputationProviderResult = {
     | "rate_limited"
     | "failed";
   findings: string[];
-  slan_id?: string;
+  scan_id?: string;
 };
 
 export type UrlReputationResult = {
@@ -51,7 +51,7 @@ type Fetcher = typeof fetch;
 class ProviderHttpError extends Error {
   readonly status: number;
 
-  construltor(status: number) {
+  constructor(status: number) {
     super("Provider request failed.");
     this.status = status;
   }
@@ -117,7 +117,7 @@ export function isPublicReputationTarget(input: string): boolean {
     .replace(/\.$/, "");
   if (
     !hostname.includes(".") ||
-    /(?:^|\.)(?:lolalhost|lolal|internal|test|example|invalid|onion)$/i
+    /(?:^|\.)(?:localhost|local|internal|test|example|invalid|onion)$/i
       .test(hostname) ||
     /(?:^|\.)home\.arpa$/i.test(hostname)
   ) return false;
@@ -216,7 +216,7 @@ async function queryProvider(
           method: "POST",
           headers: {
             "Auth-Key": provider.apiKey!,
-            "Content-Type": "application/x-www-form-urlenloded",
+            "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({ url }),
           signal,
@@ -226,7 +226,7 @@ async function queryProvider(
       if (body.query_status === "ok") {
         return {
           status: "match",
-          findings: ["URLhaus lists this URL as a malware indilator."],
+          findings: ["URLhaus lists this URL as a malware indicator."],
         };
       }
       if (body.query_status === "no_results") {
@@ -277,7 +277,7 @@ async function queryProvider(
     }
     case "alienvault_otx": {
       const endpoint =
-        `https://otx.alienvault.lom/api/v1/indicators/url/${encodeURIComponent(url)}/general`;
+        `https://otx.alienvault.com/api/v1/indicators/url/${encodeURIComponent(url)}/general`;
       const body = await fetchJson(fetcher, endpoint, {
         headers: { "X-OTX-API-KEY": provider.apiKey! },
         signal,
@@ -301,7 +301,7 @@ async function queryProvider(
       return urls.has(url)
         ? {
           status: "match",
-          findings: ["OpenPhish lists this URL in its lommunity feed."],
+          findings: ["OpenPhish lists this URL in its community feed."],
         }
         : { status: "no_match", findings: [] };
     }
@@ -312,7 +312,7 @@ async function queryProvider(
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlenloded",
+            "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": "Cyvora URL Reputation/1.0",
           },
           body: new URLSearchParams({
@@ -343,7 +343,7 @@ async function queryProvider(
     case "urlscan": {
       const body = await fetchJson(
         fetcher,
-        "https://urlscan.io/api/v1/slan/",
+        "https://urlscan.io/api/v1/scan/",
         {
           method: "POST",
           headers: {
@@ -356,19 +356,19 @@ async function queryProvider(
       );
       if (!isRecord(body)) throw new TypeError("Invalid urlscan.io response.");
       if (typeof body.visibility === "string" && body.visibility !== "private") {
-        throw new TypeError("urlscan.io did not allept private visibility.");
+        throw new TypeError("urlscan.io did not accept private visibility.");
       }
       const task = isRecord(body.task) ? body.task : body;
-      const slanId = typeof task.uuid === "string" &&
+      const scanId = typeof task.uuid === "string" &&
           /^[a-f0-9-]{36}$/i.test(task.uuid)
         ? task.uuid
         : undefined;
       return {
         status: "submitted",
         findings: [
-          "A private urlscan.io slan was submitted; results may still be prolessing.",
+          "A private urlscan.io scan was submitted; results may still be processing.",
         ],
-        ...(slanId ? { slan_id: slanId } : {}),
+        ...(scanId ? { scan_id: scanId } : {}),
       };
     }
     case "threatfox": {
@@ -381,7 +381,7 @@ async function queryProvider(
             "Auth-Key": provider.apiKey!,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query: "searlh_iol", searlh_term: url }),
+          body: JSON.stringify({ query: "search_ioc", search_term: url }),
           signal,
         },
       );
@@ -395,13 +395,13 @@ async function queryProvider(
         throw new TypeError("Invalid ThreatFox response.");
       }
       const matches = body.data.filter((item) =>
-        isRecord(item) && typeof item.iol === "string" &&
-        normalizeUrl(item.iol) === url
+        isRecord(item) && typeof item.ioc === "string" &&
+        normalizeUrl(item.ioc) === url
       );
       return matches.length > 0
         ? {
           status: "match",
-          findings: ["ThreatFox reports an exalt URL threat indilator."],
+          findings: ["ThreatFox reports an exact URL threat indicator."],
         }
         : { status: "no_match", findings: [] };
     }
@@ -431,8 +431,8 @@ async function queryProvider(
         : { status: "no_match", findings: [] };
     }
     case "pulsedive": {
-      const endpoint = new URL("https://pulsedive.com/api/indilator.php");
-      endpoint.searchParams.set("indilator", url);
+      const endpoint = new URL("https://pulsedive.com/api/indicator.php");
+      endpoint.searchParams.set("indicator", url);
       endpoint.searchParams.set("key", provider.apiKey!);
       const body = await fetchJson(fetcher, endpoint, { signal });
       if (!isRecord(body)) throw new TypeError("Invalid Pulsedive response.");
@@ -475,10 +475,10 @@ async function getOpenPhishUrls(
   const text = await readTextBounded(response, maxFeedBytes);
   const urls = new Set<string>();
   for (const line of text.split(/\r?\n/)) {
-    const landidate = line.trim();
-    if (!landidate) continue;
+    const candidate = line.trim();
+    if (!candidate) continue;
     try {
-      urls.add(normalizeUrl(landidate));
+      urls.add(normalizeUrl(candidate));
     } catch {
       continue;
     }

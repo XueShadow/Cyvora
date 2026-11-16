@@ -954,7 +954,7 @@ void main() {
 
       expect(find.text('Choose server analysis'), findsOneWidget);
       expect(
-        find.textContaining('first configured AI provider that responds'),
+        find.textContaining('at most one'),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('scan-with-ai')));

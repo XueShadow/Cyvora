@@ -1,10 +1,10 @@
 # Cyvora provider and capability status
 
-Status reflects repository code and local tests as of 2026-11-14. Provider
-credentials remain in Supabase and are not read or printed by this workflow.
-A user-provided production scan showed requests reaching eight AI providers,
-but none returned validated analysis. No additional live provider calls were
-made.
+Status reflects repository code and local tests as of 2026-11-17. Provider
+credentials remain in Supabase and are not read or printed during this audit.
+A previously recorded user-provided scan showed requests reaching eight AI
+providers, but none returned validated analysis. No new live provider calls
+were made.
 
 User-approved privacy scope for this implementation: keep screenshot processing
 to on-device OCR text, use reviewed indicators and hashes only for intelligence,
@@ -26,19 +26,25 @@ and keep Ollama excluded.
 | Hugging Face Inference Providers | ATTEMPTED; request rejected in latest scan | Text chat-completions adapter | Provider/model availability and structured-output support are unverified. |
 | Ollama | DISABLED | Excluded from code and configuration per user request | Do not configure or deploy Ollama. |
 
-AI routing supports ordered providers, a primary-only switch
-(`AI_FALLBACK_ENABLED=false`), per-provider enable flags, bounded timeouts, and
-validated JSON output. Valid summaries are retained when optional fields differ
-from the expected format; unrecognized signal labels and malformed actions are
-discarded. There is no model capability discovery, usage budget, or circuit breaker.
+AI routing now requires an explicit `AI_PROVIDER_ORDER`, an API key, and a
+provider-selected model ID. It calls at most the selected primary and one
+optional fallback; API keys alone do not activate providers. The fallback can
+be disabled with `AI_FALLBACK_ENABLED=false`, and per-provider disable flags
+remain available. Calls use bounded timeouts and validated JSON output. Valid
+summaries are retained when optional fields differ from the expected format;
+unrecognized signal labels and malformed actions are discarded. There is no
+provider-specific spend budget or circuit breaker. The authenticated Edge
+Function has a separate per-user request quota; it is not a provider billing
+budget.
 Provider attempts now record duration and status; the
 `provider_health_daily` view aggregates recent AI and URL provider outcomes.
 It is restricted to `service_role` and is not an administrator UI or a live
 credential test. Fallback can send minimized scan data to more than one provider.
 HTTP 402, 404, and 410 responses now identify billing, missing-model/endpoint,
-and retired-model failures separately. Optional `*_MODEL` secrets override the
-code defaults; clear or update any stale overrides in Supabase after reviewing
-the provider's current model catalog.
+and retired-model failures separately. There are no code-default model IDs;
+configure each selected provider's `*_MODEL` value only after reviewing its
+current model catalog. Compatibility, plan availability, and pricing still
+require independent verification.
 
 ## URL intelligence
 

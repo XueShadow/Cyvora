@@ -534,7 +534,11 @@ test("AI-provider outage is reported separately and cannot change the verdict", 
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "test-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => {
     throw new TypeError("connection refused");
@@ -552,26 +556,12 @@ test("AI-provider outage is reported separately and cannot change the verdict", 
   assert.equal(result.evidence.some((item) => item.startsWith("AI-provider")), false);
 });
 
-test("provider order is validated, deduplicated, and defaults to all providers", () => {
+test("provider order is validated, deduplicated, and capped at primary plus fallback", () => {
   assert.deepEqual(
     parseProviderOrder("gemini, groq, INVALID, gemini,openrouter"),
-    ["gemini", "groq", "openrouter"],
+    ["gemini", "groq"],
   );
-  assert.deepEqual(
-    parseProviderOrder(""),
-    [
-      "gemini",
-      "groq",
-      "openrouter",
-      "mistral",
-      "cloudflare",
-      "sambanova",
-      "cohere",
-      "nvidia",
-      "zai",
-      "huggingface",
-    ],
-  );
+  assert.deepEqual(parseProviderOrder(""), []);
 });
 
 test("the provider client sends its API key and falls back in configured order", async () => {
@@ -587,7 +577,9 @@ test("the provider client sends its API key and falls back in configured order",
       return ({
         AI_PROVIDER_ORDER: "gemini,groq",
         GEMINI_API_KEY: apiKey,
+        GEMINI_MODEL: "test-gemini-model",
         GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "test-groq-model",
       })[name];
     },
   }, async (url, options) => {
@@ -637,6 +629,44 @@ test("the provider client sends its API key and falls back in configured order",
   assert.equal(requests[1].options.headers.Authorization, "Bearer groq-key");
 });
 
+test("AI URL analysis redacts token-like path segments before sending content", async () => {
+  const token = "A".repeat(32);
+  let requestBody;
+  const result = await analyzeWithProviders({
+    contentType: "url",
+    content: `https://example.com/reset/${token}?session=private#fragment`,
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
+    },
+  }, async (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return Response.json({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            signals: [],
+            summary: "The URL could not be independently verified.",
+            recommended_actions: [],
+          }),
+        },
+      }],
+    });
+  });
+
+  assert.equal(result.status, "available");
+  const sentUrl = JSON.parse(requestBody.messages[1].content).untrusted_content;
+  assert.match(sentUrl, /example\.com\/reset\/\[redacted\]/i);
+  assert.doesNotMatch(sentUrl, new RegExp(token));
+  assert.doesNotMatch(sentUrl, /session=private|fragment/);
+});
+
 test("the safety assistant answers the latest question with redacted context", async () => {
   const messages = [
     { role: "user", content: "I received a message asking for a login code." },
@@ -649,7 +679,11 @@ test("the safety assistant answers the latest question with redacted context", a
   let requestBody;
   const result = await chatWithProviders(messages, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "test-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async (_url, options) => {
     requestBody = JSON.parse(options.body);
@@ -690,7 +724,9 @@ test("AI fallback can be disabled to enforce primary-provider-only execution", a
         AI_PROVIDER_ORDER: "gemini,groq",
         AI_FALLBACK_ENABLED: "false",
         GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-gemini-model",
         GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "test-groq-model",
       })[name];
     },
   }, async (url) => {
@@ -717,7 +753,11 @@ test("AI provider auth failures expose a safe code without provider response tex
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "test-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => new Response("sensitive provider error body", {
     status: 401,
@@ -747,7 +787,11 @@ test("AI provider failures distinguish billing, missing models, and retired mode
       threatFindings: [],
     }, {
       get(name) {
-        return name === "GEMINI_API_KEY" ? "test-key" : undefined;
+        return ({
+          AI_PROVIDER_ORDER: "gemini",
+          GEMINI_API_KEY: "test-key",
+          GEMINI_MODEL: "test-model",
+        })[name];
       },
     }, async () => new Response("provider error details", {
       status: httpStatus,
@@ -780,7 +824,11 @@ test("AI provider accepts a validated JSON response wrapped in a code fence", as
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "test-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => Response.json({
     choices: [{
@@ -801,7 +849,11 @@ test("AI provider extracts validated JSON from a text response block", async () 
     threatFindings: [],
   }, {
     get(name) {
-      return name === "OPENROUTER_API_KEY" ? "test-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "openrouter",
+        OPENROUTER_API_KEY: "test-key",
+        OPENROUTER_MODEL: "test-model",
+      })[name];
     },
   }, async () => Response.json({
     choices: [{
@@ -821,15 +873,17 @@ test("AI provider extracts validated JSON from a text response block", async () 
 test("providers without keys are skipped and provider order can be configured", () => {
   assert.deepEqual(
     parseProviderOrder("gemini, groq, INVALID, gemini,openrouter"),
-    ["gemini", "groq", "openrouter"],
+    ["gemini", "groq"],
   );
   const providers = getConfiguredProviders({
     get(name) {
       return ({
-        AI_PROVIDER_ORDER: "gemini,cloudflare,groq",
+        AI_PROVIDER_ORDER: "gemini,groq,cloudflare",
         GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-gemini-model",
         CLOUDFLARE_API_TOKEN: "cloudflare-key",
         GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "test-groq-model",
       })[name];
     },
   });
@@ -844,6 +898,49 @@ test("providers without keys are skipped and provider order can be configured", 
   );
 });
 
+test("provider keys alone do not activate AI or incur provider calls", async () => {
+  let fetchCalls = 0;
+  const environment = {
+    get(name) {
+      return ({
+        GEMINI_API_KEY: "configured-key",
+        GEMINI_MODEL: "configured-model",
+      })[name];
+    },
+  };
+  assert.deepEqual(getConfiguredProviders(environment), []);
+
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, environment, async () => {
+    fetchCalls++;
+    throw new Error("Unselected providers must not be called.");
+  });
+  assert.equal(result.status, "not_configured");
+  assert.equal(fetchCalls, 0);
+});
+
+test("provider selection requires an explicit model and uses at most two entries", () => {
+  const incomplete = getConfiguredProviders({
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  });
+  assert.deepEqual(incomplete.map((provider) => provider.id), ["groq"]);
+  assert.deepEqual(
+    parseProviderOrder("gemini,groq,openrouter,mistral"),
+    ["gemini", "groq"],
+  );
+});
+
 test("the provider registry reports configuration without exposing credentials", () => {
   const registry = getAiProviderRegistry({
     get(name) {
@@ -851,6 +948,7 @@ test("the provider registry reports configuration without exposing credentials",
         GEMINI_API_KEY: "private-test-key",
         GEMINI_MODEL: "gemini-test-model",
         HF_TOKEN: "hf-private-test-token",
+        HUGGINGFACE_MODEL: "hf-test-model",
         AI_PROVIDER_HUGGINGFACE_ENABLED: "false",
       })[name];
     },
@@ -864,7 +962,7 @@ test("the provider registry reports configuration without exposing credentials",
   assert.deepEqual(registry.find((item) => item.id === "huggingface"), {
     id: "huggingface",
     status: "disabled",
-    model: "google/gemma-2-2b-it",
+    model: "hf-test-model",
     capabilities: ["text_analysis"],
   });
   assert.equal(JSON.stringify(registry).includes("private-test-key"), false);
@@ -880,21 +978,22 @@ test("the server environment template lists supported providers with blank secre
     "GEMINI_API_KEY",
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
+    "MISTRAL_API_KEY",
     "CLOUDFLARE_API_TOKEN",
     "SAMBANOVA_API_KEY",
     "COHERE_API_KEY",
     "NVIDIA_API_KEY",
     "HF_TOKEN",
+    "ZAI_API_KEY",
     "URLHAUS_AUTH_KEY",
     "PULSEDIVE_API_KEY",
     "AI_FALLBACK_ENABLED",
+    "AI_PROVIDER_ORDER",
   ]) {
     assert.match(template, new RegExp(`^${name}=$`, "m"));
   }
-  assert.doesNotMatch(template, /^MISTRAL_API_KEY=$/m);
-  assert.doesNotMatch(template, /^ZAI_API_KEY=$/m);
-  assert.doesNotMatch(template, /^MISTRAL_MODEL=$/m);
-  assert.doesNotMatch(template, /^ZAI_MODEL=$/m);
+  assert.match(template, /^MISTRAL_MODEL=$/m);
+  assert.match(template, /^ZAI_MODEL=$/m);
   assert.doesNotMatch(template, /^OLLAMA_/m);
   assert.doesNotMatch(template, /(?:API_KEY|TOKEN|AUTH_KEY)=[^\r\n]+/);
 });
@@ -902,7 +1001,11 @@ test("the server environment template lists supported providers with blank secre
 test("Hugging Face can be configured and independently disabled", () => {
   const enabled = getConfiguredProviders({
     get(name) {
-      return name === "HF_TOKEN" ? "hf-private-test-token" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "huggingface",
+        HF_TOKEN: "hf-private-test-token",
+        HUGGINGFACE_MODEL: "test-model",
+      })[name];
     },
   });
   assert.equal(enabled.at(-1)?.id, "huggingface");
@@ -913,7 +1016,9 @@ test("Hugging Face can be configured and independently disabled", () => {
   const disabled = getConfiguredProviders({
     get(name) {
       return ({
+        AI_PROVIDER_ORDER: "huggingface",
         HF_TOKEN: "hf-private-test-token",
+        HUGGINGFACE_MODEL: "test-model",
         AI_PROVIDER_HUGGINGFACE_ENABLED: "false",
       })[name];
     },
@@ -929,7 +1034,11 @@ test("AI-provider output is validated and never changes the scan classification"
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "gemini-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => new Response(JSON.stringify({
     choices: [{
@@ -956,7 +1065,11 @@ test("AI-provider output filters unknown signals without discarding its summary"
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "gemini-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => new Response(JSON.stringify({
     choices: [{
@@ -983,7 +1096,11 @@ test("AI-provider accepts structured content and normalizes optional fields", as
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "gemini-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => Response.json({
     choices: [{
@@ -1025,7 +1142,11 @@ test("AI-provider preserves informative summaries longer than 500 characters", a
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "gemini-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => Response.json({
     choices: [{
@@ -1052,7 +1173,11 @@ test("AI-provider still rejects an invalid response without a summary", async ()
     threatFindings: [],
   }, {
     get(name) {
-      return name === "GEMINI_API_KEY" ? "gemini-key" : undefined;
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "test-model",
+      })[name];
     },
   }, async () => Response.json({
     choices: [{

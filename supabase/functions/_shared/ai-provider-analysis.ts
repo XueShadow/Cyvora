@@ -92,60 +92,49 @@ type ProviderEnvironment = {
   get(name: string): string | undefined;
 };
 
-const defaultProviderOrder: AiProviderId[] = [...aiProviderIds];
 const providerSettings: Record<
   AiProviderId,
-  { keyName: string; modelName: string; defaultModel: string }
+  { keyName: string; modelName: string }
 > = {
   gemini: {
     keyName: "GEMINI_API_KEY",
     modelName: "GEMINI_MODEL",
-    defaultModel: "gemini-4-hydrogen",
   },
   groq: {
     keyName: "GROQ_API_KEY",
     modelName: "GROQ_MODEL",
-    defaultModel: "openai/gpt-oss-20b",
   },
   openrouter: {
     keyName: "OPENROUTER_API_KEY",
     modelName: "OPENROUTER_MODEL",
-    defaultModel: "openrouter/free",
   },
   mistral: {
     keyName: "MISTRAL_API_KEY",
     modelName: "MISTRAL_MODEL",
-    defaultModel: "mistral-small-latest",
   },
   cloudflare: {
     keyName: "CLOUDFLARE_API_TOKEN",
     modelName: "CLOUDFLARE_MODEL",
-    defaultModel: "@cf/openai/gpt-oss-20b",
   },
   sambanova: {
     keyName: "SAMBANOVA_API_KEY",
     modelName: "SAMBANOVA_MODEL",
-    defaultModel: "Meta-Llama-3.3-70B-Instruct",
   },
   cohere: {
     keyName: "COHERE_API_KEY",
     modelName: "COHERE_MODEL",
-    defaultModel: "command-a-plus-05-2026",
   },
   nvidia: {
     keyName: "NVIDIA_API_KEY",
     modelName: "NVIDIA_MODEL",
-    defaultModel: "openai/gpt-oss-20b",
   },
   zai: {
     keyName: "ZAI_API_KEY",
     modelName: "ZAI_MODEL",
-    defaultModel: "glm-4.5-air",
   },
   huggingface: {
     keyName: "HF_TOKEN",
     modelName: "HUGGINGFACE_MODEL",
-    defaultModel: "google/gemma-2-2b-it",
   },
 };
 const providerTimeoutMs = 20_000;
@@ -531,6 +520,7 @@ export function getAiProviderRegistry(
     const enabled = isProviderEnabled(id, environment);
     const settings = providerSettings[id];
     const hasKey = Boolean(environment.get(settings.keyName)?.trim());
+    const model = environment.get(settings.modelName)?.trim() ?? "";
     const hasCloudflareAccount = id !== "cloudflare" ||
       /^[a-f0-9]{32}$/i.test(
         environment.get("CLOUDFLARE_ACCOUNT_ID")?.trim() ?? "",
@@ -539,23 +529,22 @@ export function getAiProviderRegistry(
       id,
       status: !enabled
         ? "disabled"
-        : hasKey && hasCloudflareAccount
+        : hasKey && model && hasCloudflareAccount
         ? "configured"
         : "not_configured",
-      model: environment.get(settings.modelName)?.trim() ||
-        settings.defaultModel,
+      model,
       capabilities: ["text_analysis"] as const,
     };
   });
 }
 
 export function parseProviderOrder(value?: string): AiProviderId[] {
-  if (!value?.trim()) return [...defaultProviderOrder];
+  if (!value?.trim()) return [];
   const allowed = new Set<string>(aiProviderIds);
   const parsed = value.split(",")
     .map((item) => item.trim().toLowerCase())
     .filter((item): item is AiProviderId => allowed.has(item));
-  return [...new Set(parsed)];
+  return [...new Set(parsed)].slice(0, 2);
 }
 
 function providerConfig(
@@ -565,7 +554,8 @@ function providerConfig(
   if (!isProviderEnabled(id, environment)) return null;
   const setting = providerSettings[id];
   const apiKey = environment.get(setting.keyName)?.trim();
-  if (!apiKey) return null;
+  const model = environment.get(setting.modelName)?.trim();
+  if (!apiKey || !model) return null;
 
   let endpoint: string;
   if (id === "cloudflare") {
@@ -591,7 +581,7 @@ function providerConfig(
   return {
     id,
     apiKey,
-    model: environment.get(setting.modelName)?.trim() || setting.defaultModel,
+    model,
     endpoint,
   };
 }
@@ -625,6 +615,17 @@ export function minimizeContent(
   if (contentType === "url") {
     try {
       const url = new URL(content.includes("://") ? content : `https://${content}`);
+      url.pathname = url.pathname.split("/").map((segment) => {
+        let decoded: string;
+        try {
+          decoded = decodeURIComponent(segment);
+        } catch {
+          decoded = segment;
+        }
+        return decoded.length > 40 || /^[a-zA-Z0-9_-]{24,}$/.test(decoded)
+          ? "[redacted]"
+          : segment;
+      }).join("/");
       url.hash = "";
       for (const key of url.searchParams.keys()) {
         url.searchParams.set(key, "[redacted]");

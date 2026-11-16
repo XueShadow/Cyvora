@@ -36,6 +36,10 @@ test("URL reputation checks aggregate all configured sources in fixed order", as
       if (requestUrl === "https://urlhaus-api.abuse.ch/v1/url/") {
         assert.equal(new URLSearchParams(init.body).get("url"), normalizedUrl);
         assert.equal(init.headers["Auth-Key"], apiKeys.URLHAUS_AUTH_KEY);
+        assert.equal(
+          init.headers["Content-Type"],
+          "application/x-www-form-urlencoded",
+        );
         return Response.json({ query_status: "ok" });
       }
       if (requestUrl.startsWith("https://safebrowsing.googleapis.com/")) {
@@ -55,6 +59,10 @@ test("URL reputation checks aggregate all configured sources in fixed order", as
       }
       if (requestUrl === "https://checkurl.phishtank.com/checkurl/") {
         const body = new URLSearchParams(init.body);
+        assert.equal(
+          init.headers["Content-Type"],
+          "application/x-www-form-urlencoded",
+        );
         assert.equal(body.get("url"), normalizedUrl);
         assert.equal(body.get("app_key"), apiKeys.PHISHTANK_API_KEY);
         return Response.json({

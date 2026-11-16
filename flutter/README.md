@@ -285,14 +285,15 @@ Scan metadata and normalized module evidence are saved, not the original
 message, URL, or screenshot text.
 
 Users may explicitly opt into AI-provider-assisted analysis for an individual
-scan. The server sends minimized content and normalized findings to the first
-configured provider that responds, trying configured providers in this order:
-Google Gemini, Groq, OpenRouter, Mistral AI, Cloudflare Workers AI, SambaNova
-Cloud, Cohere, NVIDIA NIM, Z.AI, and Hugging Face Inference Providers. Email
-addresses, phone numbers, numeric codes, URL query values, and fragments are
-redacted where applicable. The
-backend validates the structured response; AI output can add context but
-cannot independently declare a URL safe or override verified threat evidence.
+scan. The server sends minimized content and normalized findings to the
+explicitly selected primary provider and, if enabled, at most one configured
+fallback. Email addresses, phone numbers, numeric codes, URL query values, and
+fragments, plus long token-like URL path segments, are redacted where
+applicable.
+Review submitted content before opting in; minimization is not a guarantee that
+all personal data is removed. The backend validates the structured response;
+AI output can add context but cannot independently declare a URL safe or
+override verified threat evidence.
 
 Provider keys are issued by each provider and must be kept in Supabase Edge
 Function secrets; never put them in the Flutter app or source control. Add a
@@ -321,18 +322,21 @@ ZAI_API_KEY
 HF_TOKEN
 ```
 
-Optional model overrides are `GEMINI_MODEL`, `GROQ_MODEL`, `OPENROUTER_MODEL`,
-`MISTRAL_MODEL`, `CLOUDFLARE_MODEL`, `SAMBANOVA_MODEL`, `COHERE_MODEL`,
-`NVIDIA_MODEL`, `ZAI_MODEL`, and `HUGGINGFACE_MODEL`. `AI_PROVIDER_ORDER` can
-override the default comma-separated order using the IDs
+Set the provider model explicitly using `GEMINI_MODEL`, `GROQ_MODEL`,
+`OPENROUTER_MODEL`, `MISTRAL_MODEL`, `CLOUDFLARE_MODEL`, `SAMBANOVA_MODEL`,
+`COHERE_MODEL`, `NVIDIA_MODEL`, `ZAI_MODEL`, or `HUGGINGFACE_MODEL`. Choose a
+model from that provider's current catalog; Cyvora does not assume a default
+model or free-tier eligibility. Set `AI_PROVIDER_ORDER` to one or two
+comma-separated IDs from
 `gemini,groq,openrouter,mistral,cloudflare,sambanova,cohere,nvidia,zai,huggingface`.
-Set `AI_FALLBACK_ENABLED=false` to use only the first configured provider.
-Providers can be disabled independently with `AI_PROVIDER_<ID>_ENABLED=false`,
-where `<ID>` is the uppercase provider ID (for example,
-`AI_PROVIDER_GEMINI_ENABLED=false`).
-Cloudflare Workers AI also requires the account ID. Providers without a key
-(or, for Cloudflare, an account ID) are skipped. The backend tries providers
-sequentially with bounded timeouts and reports the provider that succeeded.
+The first is the primary; the optional second is the only fallback. An unset
+order means no AI provider is called, even if API keys exist. Set
+`AI_FALLBACK_ENABLED=false` to disable the second provider. Providers can also
+be disabled independently with `AI_PROVIDER_<ID>_ENABLED=false`, where `<ID>`
+is the uppercase provider ID (for example, `AI_PROVIDER_GEMINI_ENABLED=false`).
+Cloudflare Workers AI also requires the account ID. Selected providers without
+a key, model, or (for Cloudflare) account ID are skipped. Calls use bounded
+timeouts and report the provider that succeeded.
 The internal registry reports only provider IDs, model names, text-analysis
 capability, and configured/disabled status; it never includes API secrets. This
 is configuration metadata, not a live health check or model-capability

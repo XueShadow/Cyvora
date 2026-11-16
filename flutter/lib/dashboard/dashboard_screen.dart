@@ -864,12 +864,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   'and perform a TLS handshake; it does not fetch the submitted '
                   'page or follow redirects. '
                   '${type == 'screenshot' ? 'Web OCR downloads its engine and English model on first use. The screenshot stays on this device; only extracted text is sent if you continue. ' : ''}'
-                  'Optional AI-provider analysis tries Cyvora’s configured '
-                  'provider chain (Google Gemini, Groq, OpenRouter, Mistral, '
-                  'Cloudflare Workers AI, SambaNova, Cohere, NVIDIA NIM, and '
-                  'Z.AI) in order, falling back when a provider is unavailable. '
-                  'If selected, minimized content and findings go to the first '
-                  'configured AI provider that responds. Provider terms, '
+                  'Optional AI-provider analysis sends minimized content to '
+                  'the primary provider you configured, with at most one '
+                  'configured fallback if enabled. Provider terms, '
                   'quotas, and billing vary.',
                 ),
                 if (type == 'url') ...[
