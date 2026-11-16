@@ -20,9 +20,14 @@ This is not a penetration test or a claim of production certification.
 - Optional AI and URL reputation calls are user-selected. AI routing requires
   explicit provider/model selection and limits a scan to one primary and at
   most one fallback. Provider output is validated before use. Local
-  uncommitted changes add fail-closed daily global, per-user, and per-provider
-  request limits, plus a provider circuit breaker; these require migration and
-  function deployment and do not limit dollar spend.
+  pushed code adds fail-closed global, per-user, and per-provider daily request
+  limits plus a provider circuit breaker. Uncommitted follow-up adds
+  user-level cooldowns, HMAC-based duplicate suppression, provider concurrency
+  leases, and stops fallback after circuit-open or HTTP 429 responses. It also
+  skips optional AI when verified threat intelligence is already sufficient.
+  Deployment of the new follow-up migration is unverified and PostgreSQL
+  execution was not tested. Request
+  counts do not limit dollar spend.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
 
@@ -39,9 +44,11 @@ This is not a penetration test or a claim of production certification.
   separate-user integration tests against a local or staging database were
   unavailable.
 - **Provider spend and resilience — PARTIALLY IMPLEMENTED:** local uncommitted
-  changes add atomic request-count budgets and a three-failure/15-minute
-  circuit breaker. They are not deployed or live-tested. These counts do not
-  cap provider billing, so provider-side spending limits remain required.
+  changes add cooldown/deduplication/concurrency controls; pushed code already
+  has atomic request-count budgets and a three-failure/15-minute circuit
+  breaker. Deployment is not confirmed or live-tested, and the uncommitted SQL
+  has only static contract coverage. Request counts do not cap provider
+  billing, so provider-side spending limits remain required.
 - **External data processing — REQUIRES USER CONSENT:** optional AI or URL
   reputation analysis can send minimized scan data or the submitted URL to
   selected third parties. Provider retention, plan availability, and pricing
@@ -67,6 +74,11 @@ This is not a penetration test or a claim of production certification.
 - Do not expose the Supabase service-role key to Flutter or ordinary users.
 - Do not deploy migrations, change production secrets/settings, or release a
   signed build without separate approval and a reviewed deployment plan.
+- The latest pushed baseline is `a6e01c8`; the current AI cooldown,
+  deduplication, concurrency, and verified-threat skip changes are uncommitted.
+  The latest recorded CI run for the pushed baseline passed, and the current
+  local test run passed 86 backend tests plus Flutter analysis and 59 Flutter
+  tests. These results do not replace database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the updated Edge Function, the deployed version
   retains the prior race condition.

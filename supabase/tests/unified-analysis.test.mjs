@@ -17,6 +17,7 @@ import {
 } from "../functions/_shared/network-analysis.ts";
 import {
   assessUnifiedRisk,
+  hasVerifiedThreatEvidence,
   validateUnifiedAssessment,
 } from "../functions/_shared/risk-assessment.ts";
 import {
@@ -26,6 +27,7 @@ import {
   getAiProviderRegistry,
   parseProviderOrder,
 } from "../functions/_shared/ai-provider-analysis.ts";
+import { createRequestFingerprint } from "../functions/_shared/request-fingerprint.ts";
 import { classifyScamContent } from "../functions/scam-intelligence/scam-patterns.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -337,6 +339,38 @@ test("an exact curated local indicator match produces MALICIOUS", async () => {
     item.module === "local_indicator_database" &&
     item.evidence_kind === "confirmed_detection"
   ), true);
+});
+
+test("verified threat evidence can skip optional AI without weakening the verdict", async () => {
+  const indicator = { type: "url", value: "https://bad.example/login" };
+  const hash = await hashIndicator(indicator);
+  const result = await analyzeUrl(indicator.value, {
+    localThreats: [{
+      indicator_type: "url",
+      indicator_hash: hash,
+      category: "Phishing",
+    }],
+  });
+  assert.equal(hasVerifiedThreatEvidence(result.analysis_modules), true);
+
+  const assessment = assessUnifiedRisk(
+    cleanRuleResult,
+    result.analysis_modules,
+    {
+      status: "skipped_verified_threat",
+      provider: null,
+      providers_tried: [],
+      provider_attempts: [],
+    },
+    fixedTime,
+  );
+  assert.equal(assessment.classification, "MALICIOUS");
+  assert.equal(assessment.ai_analysis.status, "skipped_verified_threat");
+  assert.deepEqual(assessment.ai_analysis.provider_attempts, []);
+  assert.equal(validateUnifiedAssessment(assessment), true);
+
+  const suspicious = await analyzeUrl("urgent verify your account and pay now");
+  assert.equal(hasVerifiedThreatEvidence(suspicious.analysis_modules), false);
 });
 
 test("one reviewed community report is suspicious, not confirmed malicious", async () => {
@@ -653,7 +687,49 @@ test("assistant chat is also gated by provider request budgets", async () => {
   assert.equal(result.provider_attempts[0].status, "user_budget_exhausted");
 });
 
-test("AI provider circuit denial allows the single configured fallback", async () => {
+test("assistant chat stops before fallback for cooldown, duplicates, and concurrency limits", async () => {
+  for (const reason of [
+    "user_cooldown",
+    "duplicate_request",
+    "concurrency_limited",
+  ]) {
+    let fetchCalls = 0;
+    const result = await chatWithProviders([{
+      role: "user",
+      content: "How do I verify this message?",
+    }], {
+      get(name) {
+        return ({
+          AI_PROVIDER_ORDER: "gemini,groq",
+          GEMINI_API_KEY: "gemini-key",
+          GEMINI_MODEL: "gemini-model",
+          GROQ_API_KEY: "groq-key",
+          GROQ_MODEL: "groq-model",
+        })[name];
+      },
+    }, async () => {
+      fetchCalls++;
+      throw new Error("A denied request must not reach a provider.");
+    }, {
+      async authorize(provider) {
+        assert.equal(provider, "gemini");
+        return { allowed: false, reason };
+      },
+      async complete() {
+        assert.fail("Denied provider attempts must not be completed.");
+      },
+    });
+
+    assert.equal(result.status, "rate_limited");
+    assert.equal(fetchCalls, 0);
+    assert.deepEqual(result.providers_tried, []);
+    assert.deepEqual(result.provider_attempts.map((item) => item.status), [
+      reason,
+    ]);
+  }
+});
+
+test("AI provider circuit denial does not consume fallback quota", async () => {
   const attempted = [];
   const completed = [];
   const result = await analyzeWithProviders({
@@ -688,18 +764,133 @@ test("AI provider circuit denial allows the single configured fallback", async (
     async authorize(provider) {
       return provider === "gemini"
         ? { allowed: false, reason: "circuit_open" }
-        : { allowed: true };
+        : { allowed: true, reservationId: "reservation-groq" };
     },
     async complete(attempt) {
       completed.push(attempt);
     },
   });
 
-  assert.equal(result.status, "available");
-  assert.equal(result.provider, "groq");
-  assert.equal(attempted.length, 1);
-  assert.deepEqual(completed.map((attempt) => attempt.provider), ["groq"]);
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.provider, null);
+  assert.equal(attempted.length, 0);
+  assert.deepEqual(completed, []);
+  assert.deepEqual(result.providers_tried, []);
   assert.equal(result.provider_attempts[0].status, "circuit_open");
+});
+
+test("daily quota denial does not consume fallback provider quota", async () => {
+  for (const reason of [
+    "provider_budget_exhausted",
+    "user_budget_exhausted",
+    "global_budget_exhausted",
+  ]) {
+    const authorized = [];
+    let fetchCalls = 0;
+    const result = await analyzeWithProviders({
+      contentType: "message",
+      content: "Synthetic text.",
+      ruleFindings: [],
+      threatFindings: [],
+    }, {
+      get(name) {
+        return ({
+          AI_PROVIDER_ORDER: "gemini,groq",
+          GEMINI_API_KEY: "gemini-key",
+          GEMINI_MODEL: "gemini-model",
+          GROQ_API_KEY: "groq-key",
+          GROQ_MODEL: "groq-model",
+        })[name];
+      },
+    }, async () => {
+      fetchCalls++;
+      throw new Error("Quota denial must prevent provider calls.");
+    }, {
+      async authorize(provider) {
+        authorized.push(provider);
+        return { allowed: false, reason };
+      },
+      async complete() {
+        assert.fail("Denied provider attempts must not be completed.");
+      },
+    });
+
+    assert.equal(result.status, "rate_limited");
+    assert.deepEqual(authorized, ["gemini"]);
+    assert.equal(fetchCalls, 0);
+    assert.deepEqual(result.provider_attempts.map((item) => item.status), [
+      reason,
+    ]);
+  }
+});
+
+test("provider rate limits stop fallback instead of spending another quota", async () => {
+  let fetchCalls = 0;
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    return new Response("rate limited", { status: 429 });
+  });
+
+  assert.equal(result.status, "rate_limited");
+  assert.equal(fetchCalls, 1);
+  assert.deepEqual(result.providers_tried, ["gemini"]);
+  assert.deepEqual(result.provider_attempts.map((attempt) => attempt.provider), [
+    "gemini",
+  ]);
+});
+
+test("request fingerprints are stable, user-scoped, and do not reveal content", async () => {
+  const content = "A synthetic message containing an OTP.";
+  const fingerprint = await createRequestFingerprint(
+    "test-only-hmac-key",
+    "user-1",
+    "scan:message",
+    content,
+  );
+  assert.match(fingerprint, /^[0-9a-f]{64}$/);
+  assert.equal(
+    await createRequestFingerprint(
+      "test-only-hmac-key",
+      "user-1",
+      "scan:message",
+      content,
+    ),
+    fingerprint,
+  );
+  assert.notEqual(
+    await createRequestFingerprint(
+      "test-only-hmac-key",
+      "user-2",
+      "scan:message",
+      content,
+    ),
+    fingerprint,
+  );
+  assert.notEqual(
+    await createRequestFingerprint(
+      "test-only-hmac-key",
+      "user-1",
+      "assistant_chat",
+      content,
+    ),
+    fingerprint,
+  );
+  assert.equal(fingerprint.includes(content), false);
 });
 
 test("AI outcome accounting failure stops provider fallback", async () => {
@@ -724,7 +915,7 @@ test("AI outcome accounting failure stops provider fallback", async () => {
     return new Response("unavailable", { status: 503 });
   }, {
     async authorize() {
-      return { allowed: true };
+      return { allowed: true, reservationId: "reservation-gemini" };
     },
     async complete() {
       throw new Error("Accounting failure");
@@ -765,7 +956,7 @@ test("the provider client sends its API key and falls back in configured order",
   }, async (url, options) => {
     requests.push({ url, options });
     if (url.includes("generativelanguage")) {
-      return new Response("rate limited", { status: 429 });
+      return new Response("provider unavailable", { status: 503 });
     }
     return new Response(JSON.stringify({
       choices: [{
@@ -785,8 +976,8 @@ test("the provider client sends its API key and falls back in configured order",
   assert.deepEqual(withoutAttemptDurations(result.provider_attempts), [
     {
       provider: "gemini",
-      status: "rate_limited",
-      http_status: 429,
+      status: "provider_error",
+      http_status: 503,
     },
     {
       provider: "groq",
@@ -1171,6 +1362,9 @@ test("the server environment template lists supported providers with blank secre
     "AI_PROVIDER_ORDER",
     "AI_GLOBAL_DAILY_REQUEST_LIMIT",
     "AI_USER_DAILY_REQUEST_LIMIT",
+    "AI_USER_COOLDOWN_SECONDS",
+    "AI_DUPLICATE_WINDOW_SECONDS",
+    "AI_MAX_CONCURRENT_PROVIDER_REQUESTS",
     "AI_GEMINI_DAILY_REQUEST_LIMIT",
     "AI_GROQ_DAILY_REQUEST_LIMIT",
     "AI_OPENROUTER_DAILY_REQUEST_LIMIT",
@@ -1486,6 +1680,26 @@ test("AI provider guardrails reserve bounded budgets and keep controls service-o
   assert.match(migration, /security_invoker = true/i);
 });
 
+test("AI request controls deduplicate, cool down users, and cap concurrency", async () => {
+  const migration = await readFile(
+    resolve(projectRoot, "supabase/migrations/202611170003_ai_request_dedup_cooldowns.sql"),
+    "utf8",
+  );
+  assert.match(migration, /create table if not exists public\.ai_request_deduplication/);
+  assert.match(migration, /request_fingerprint text not null/);
+  assert.match(migration, /requested_at <=[\s\S]*target_duplicate_window_seconds/);
+  assert.match(migration, /target_user_cooldown_seconds/);
+  assert.match(migration, /target_max_concurrent_requests/);
+  assert.match(migration, /concurrency_limited/);
+  assert.match(migration, /target_initial_attempt/);
+  assert.match(migration, /create table if not exists public\.ai_provider_attempt_leases/);
+  assert.match(migration, /expires_at timestamptz not null/);
+  assert.match(migration, /revoke all on function public\.reserve_ai_provider_attempt_v2/i);
+  assert.match(migration, /revoke all on function public\.record_ai_provider_attempt_v2/i);
+  assert.match(migration, /grant execute on function public\.reserve_ai_provider_attempt_v2[\s\S]*to service_role;/i);
+  assert.match(migration, /grant execute on function public\.record_ai_provider_attempt_v2[\s\S]*to service_role;/i);
+});
+
 test("risk validation accepts provider budget and circuit statuses", () => {
   const statuses = [
     "budget_unconfigured",
@@ -1493,6 +1707,9 @@ test("risk validation accepts provider budget and circuit statuses", () => {
     "global_budget_exhausted",
     "user_budget_exhausted",
     "provider_budget_exhausted",
+    "user_cooldown",
+    "duplicate_request",
+    "concurrency_limited",
     "circuit_open",
   ];
   const assessment = assessUnifiedRisk(

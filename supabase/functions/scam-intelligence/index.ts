@@ -28,10 +28,12 @@ import {
 } from "../_shared/url-reputation.ts";
 import {
   assessUnifiedRisk,
+  hasVerifiedThreatEvidence,
   validateUnifiedAssessment,
 } from "../_shared/risk-assessment.ts";
 import { requiresMfaChallenge } from "../_shared/mfa-auth.ts";
 import { readLimitedBody } from "../_shared/request-body.ts";
+import { createRequestFingerprint } from "../_shared/request-fingerprint.ts";
 import {
   assignDatasetSplit,
   evaluateTrustedDataset,
@@ -88,17 +90,26 @@ function toJson(value: unknown): Json {
   return null;
 }
 
-function getDailyRequestLimit(name: string): number | null {
+function getPositiveIntegerSetting(
+  name: string,
+  maximum: number,
+): number | null {
   const value = Deno.env.get(name)?.trim();
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
   const limit = Number(value);
-  return Number.isSafeInteger(limit) && limit <= 100000 ? limit : null;
+  return Number.isSafeInteger(limit) && limit <= maximum ? limit : null;
+}
+
+function getDailyRequestLimit(name: string): number | null {
+  return getPositiveIntegerSetting(name, 100000);
 }
 
 function createAiProviderAttemptController(
   admin: AdminClient,
   userId: string,
+  requestFingerprint: string,
 ): AiProviderAttemptController {
+  let isInitialAttempt = true;
   return {
     async authorize(provider) {
       const globalLimit = getDailyRequestLimit(
@@ -108,29 +119,59 @@ function createAiProviderAttemptController(
       const providerLimit = getDailyRequestLimit(
         `AI_${provider.toUpperCase()}_DAILY_REQUEST_LIMIT`,
       );
-      if (globalLimit === null || userLimit === null || providerLimit === null) {
+      const userCooldownSeconds = getPositiveIntegerSetting(
+        "AI_USER_COOLDOWN_SECONDS",
+        10,
+      );
+      const duplicateWindowSeconds = getPositiveIntegerSetting(
+        "AI_DUPLICATE_WINDOW_SECONDS",
+        300,
+      );
+      const maxConcurrentRequests = getPositiveIntegerSetting(
+        "AI_MAX_CONCURRENT_PROVIDER_REQUESTS",
+        10,
+      );
+      if (
+        globalLimit === null || userLimit === null || providerLimit === null ||
+        userCooldownSeconds === null || duplicateWindowSeconds === null ||
+        maxConcurrentRequests === null
+      ) {
         return { allowed: false, reason: "budget_unconfigured" };
       }
 
       const { data, error } = await admin.rpc(
-        "reserve_ai_provider_attempt",
+        "reserve_ai_provider_attempt_v2",
         {
           target_user_id: userId,
           target_provider: provider,
           target_global_limit: globalLimit,
           target_user_limit: userLimit,
           target_provider_limit: providerLimit,
+          target_request_fingerprint: requestFingerprint,
+          target_user_cooldown_seconds: userCooldownSeconds,
+          target_duplicate_window_seconds: duplicateWindowSeconds,
+          target_max_concurrent_requests: maxConcurrentRequests,
+          target_initial_attempt: isInitialAttempt,
         },
       );
       if (error) {
         console.error("Scam intelligence: AI provider budget check failed.");
         return { allowed: false, reason: "budget_check_failed" };
       }
-      if (data === "allowed") return { allowed: true };
+      const reservation = typeof data === "string"
+        ? /^allowed:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+          .exec(data)
+        : null;
+      if (reservation) {
+        isInitialAttempt = false;
+        return { allowed: true, reservationId: reservation[1] };
+      }
       const reason: AiProviderAuthorizationReason | null = data ===
           "budget_unconfigured" || data === "global_budget_exhausted" ||
           data === "user_budget_exhausted" ||
-          data === "provider_budget_exhausted" || data === "circuit_open"
+          data === "provider_budget_exhausted" || data === "circuit_open" ||
+          data === "user_cooldown" || data === "duplicate_request" ||
+          data === "concurrency_limited"
         ? data
         : null;
       return {
@@ -138,14 +179,15 @@ function createAiProviderAttemptController(
         reason: reason ?? "budget_check_failed",
       };
     },
-    async complete(attempt: AiProviderAttempt) {
+    async complete(attempt: AiProviderAttempt, reservationId: string) {
       const { data, error } = await admin.rpc(
-        "record_ai_provider_attempt",
+        "record_ai_provider_attempt_v2",
         {
           target_provider: attempt.provider,
           target_status: attempt.status,
           target_duration_ms: attempt.duration_ms,
           target_http_status: attempt.http_status ?? null,
+          target_reservation_id: reservationId,
         },
       );
       if (error || data !== true) {
@@ -1423,11 +1465,17 @@ async function handleRequest(request: Request) {
       });
     }
 
+    const requestFingerprint = await createRequestFingerprint(
+      serviceRoleKey,
+      user.id,
+      "assistant_chat",
+      messages,
+    );
     const response = await chatWithProviders(
       messages,
       Deno.env,
       fetch,
-      createAiProviderAttemptController(admin, user.id),
+      createAiProviderAttemptController(admin, user.id, requestFingerprint),
     );
     if (response.status !== "available") {
       return jsonResponse(response.status === "rate_limited" ? 429 : 503, {
@@ -1585,12 +1633,19 @@ async function handleRequest(request: Request) {
   }
 
   const aiResult: AiAnalysisResult | {
-    status: "disabled";
+    status: "disabled" | "skipped_verified_threat";
     provider: null;
     providers_tried: [];
     provider_attempts: [];
   } =
-    useAi
+    useAi && hasVerifiedThreatEvidence(allModules)
+      ? {
+        status: "skipped_verified_threat",
+        provider: null,
+        providers_tried: [],
+        provider_attempts: [],
+      }
+      : useAi
       ? await analyzeWithProviders(
         {
           contentType: type,
@@ -1603,7 +1658,16 @@ async function handleRequest(request: Request) {
         },
         Deno.env,
         fetch,
-        createAiProviderAttemptController(admin, user.id),
+        createAiProviderAttemptController(
+          admin,
+          user.id,
+          await createRequestFingerprint(
+            serviceRoleKey,
+            user.id,
+            `scan:${type}`,
+            input,
+          ),
+        ),
       )
       : {
         status: "disabled",

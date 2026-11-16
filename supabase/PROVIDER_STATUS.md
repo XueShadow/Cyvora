@@ -1,10 +1,9 @@
 # Cyvora provider and capability status
 
 Status reflects repository code and local tests as of 2026-11-17. Provider
-credentials remain in Supabase and are not read or printed during this audit.
-A previously recorded user-provided scan showed requests reaching eight AI
-providers, but none returned validated analysis. No new live provider calls
-were made.
+credentials and runtime model settings were not read. No live provider calls
+were made. Outcomes noted as previously reported are unverified and were not
+reproduced during this review.
 
 User-approved privacy scope for this implementation: keep screenshot processing
 to on-device OCR text, use reviewed indicators and hashes only for intelligence,
@@ -12,19 +11,19 @@ and keep Ollama excluded.
 
 ## AI text providers
 
-| Provider | Status | Adapter / capability | Test and limitation |
-|---|---|---|---|
-| Google Gemini | ATTEMPTED; no validated response in latest scan | Text analysis through chat completions | Model-specific availability and structured output are unverified. |
-| Groq | ATTEMPTED; no validated response in latest scan | Text analysis through chat completions | Model-specific availability and structured output are unverified. |
-| OpenRouter | ATTEMPTED; invalid response in latest scan | Text analysis through chat completions | Free-model routing and response formats vary. |
-| Mistral AI | NOT CONFIGURED | Text analysis through chat completions | Mocked only; model capability is not discovered dynamically. |
-| Cloudflare Workers AI | ATTEMPTED; model reported retired in latest scan | Text analysis through account-scoped chat endpoint | Account, token, model, and quota are not independently verified. |
-| SambaNova Cloud | ATTEMPTED; billing required in latest scan | Text analysis through chat completions | Account billing/plan must permit inference. |
-| Cohere | ATTEMPTED; timed out in latest scan | Text analysis through compatibility endpoint | Live model support and network availability are unverified. |
-| NVIDIA NIM | ATTEMPTED; model reported retired in latest scan | Text analysis through chat completions | Account and model availability are not independently verified. |
-| Z.AI / GLM | NOT CONFIGURED | Text analysis through chat completions | Mocked only; live model support is unverified. |
-| Hugging Face Inference Providers | ATTEMPTED; request rejected in latest scan | Text chat-completions adapter | Provider/model availability and structured-output support are unverified. |
-| Ollama | DISABLED | Excluded from code and configuration per user request | Do not configure or deploy Ollama. |
+| Provider | Configured model | Configuration status | Last verified test status | Failure reason, if any | Required action |
+|---|---|---|---|---|---|
+| Google Gemini | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan had no validated response; not reproduced | In approved staging, verify selected model, authentication, and structured response; set a provider request limit. |
+| Groq | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan had no validated response; not reproduced | In approved staging, verify selected model, authentication, and structured response; set a provider request limit. |
+| OpenRouter | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan reported an invalid response; not reproduced | Verify current model route and response format in staging; set a provider request limit. |
+| Mistral AI | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan said not configured; not independently checked | Configure only if selected; verify the model and structured response in staging. |
+| Cloudflare Workers AI | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan reported a retired model; not reproduced | Choose a currently supported account model and verify in staging. |
+| SambaNova Cloud | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan reported billing required; not reproduced | Confirm account billing and model access before enabling. |
+| Cohere | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan timed out; not reproduced | Verify endpoint/model and bounded response time in staging. |
+| NVIDIA NIM | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan reported a retired model; not reproduced | Choose a currently supported model and verify in staging. |
+| Z.AI / GLM | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan said not configured; not independently checked | Configure only if selected; verify authentication and structured output in staging. |
+| Hugging Face Inference Providers | Not disclosed; runtime secrets not inspected | UNKNOWN | Mocked adapter behavior only; live response NOT TESTED | Prior user-reported scan reported a rejected request; not reproduced | Verify provider/model access and response format in staging. |
+| Ollama | Not applicable | DISABLED by requirement | NOT TESTED; excluded from routing | Not applicable | Keep disabled and do not add local-model dependencies. |
 
 AI routing now requires an explicit `AI_PROVIDER_ORDER`, an API key, and a
 provider-selected model ID. It calls at most the selected primary and one
@@ -33,22 +32,31 @@ be disabled with `AI_FALLBACK_ENABLED=false`, and per-provider disable flags
 remain available. Calls use bounded timeouts and validated JSON output. Valid
 summaries are retained when optional fields differ from the expected format;
 unrecognized signal labels and malformed actions are discarded. There is no
-provider dollar-spend budget. New server-side controls reserve daily request
-counts atomically across global, per-user, and per-provider limits. All three
-limits must be configured as positive integers (maximum 100,000) or AI calls
-fail closed as unavailable/not configured. Per-provider settings use
+provider dollar-spend budget. Server-side controls reserve daily request counts atomically across global,
+per-user, and per-provider limits. All three limits must be configured as
+positive integers (maximum 100,000) or AI calls fail closed as
+unavailable/not configured. The follow-up cooldown/deduplication/concurrency
+controls are present in an uncommitted migration; deployment is unverified.
+They must be applied before they can run. Per-provider settings use
 `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
 `AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
 provider-side spending limits separately.
-Provider attempts now record duration and status; the
-`provider_health_daily` view aggregates recent AI and URL provider outcomes.
-The new `ai_provider_health` view reports daily AI request counts, latest
-status/latency, and circuit state. Both views are restricted to `service_role`
-and are not an administrator UI or a live credential test. After three
-consecutive provider failures, the new circuit breaker opens for 15 minutes;
-only one half-open probe is allowed for 90 seconds after cooldown. Accounting
-failures stop fallback routing. Fallback can send minimized scan data to more
-than one provider.
+If unset, the server-side cooldown, duplicate window, and concurrency settings
+default to 10 seconds, 300 seconds, and 10 active requests per provider,
+respectively; they can be overridden within migration 003's validated bounds.
+Repository migrations record provider duration and status and define the
+`provider_health_daily` view for AI and URL provider outcomes. The local
+migrations define the `ai_provider_health` view with daily AI request counts,
+latest status/latency, and circuit state. Both views are restricted to
+`service_role`; deployment is unverified, and neither view is an administrator
+UI or a live credential test. The circuit breaker
+opens after three consecutive provider failures for 15 minutes; only one
+half-open probe is allowed for 90 seconds after cooldown. Accounting failures,
+an open circuit, and provider HTTP 429 responses stop fallback routing, so a
+failed or quota-limited primary does not consume another provider's quota.
+Deterministic analysis also skips optional AI when verified threat intelligence
+already establishes a malicious result. Other fallback calls may still send
+minimized scan data to a second selected provider.
 HTTP 402, 404, and 410 responses now identify billing, missing-model/endpoint,
 and retired-model failures separately. There are no code-default model IDs;
 configure each selected provider's `*_MODEL` value only after reviewing its
@@ -96,7 +104,7 @@ fetched.
 | Phone MFA enrollment and verification | IMPLEMENTED; provider pending | Flutter uses Supabase Phone MFA enrollment, challenge, and verify APIs. Phone numbers are validated as E.164 values. |
 | Sign-in step-up challenge | IMPLEMENTED; provider pending | Verified phone factors require an AAL2 challenge before the dashboard is shown. |
 | Resend and expiration handling | IMPLEMENTED | The UI blocks resends for 30 seconds, honors the challenge expiration returned by Supabase, and displays rate-limit, expiration, and network errors. |
-| Server-side enforcement | DEPLOYED | `202611150005_mfa_enforcement.sql` requires AAL2 for users with verified MFA factors, and the protected Edge Functions reject incomplete MFA sessions. |
+| Server-side enforcement | IMPLEMENTED IN REPOSITORY; DEPLOYMENT UNVERIFIED | `202611150005_mfa_enforcement.sql` requires AAL2 for users with verified MFA factors, and the protected Edge Functions reject incomplete MFA sessions. |
 | SMS delivery | NOT VERIFIED | A real provider must be configured and a real delivery/verification test must pass before this is considered operational. |
 
 ### Configure SMS delivery manually
@@ -127,30 +135,33 @@ fetched.
 | Similarity, embeddings, campaign grouping, drift evaluation, model training | NOT IMPLEMENTED | `detection_feedback_daily` provides service-role-only, aggregate feedback counts for evaluation. Feedback and reports do not automatically train or update a model. |
 | Unified analysis endpoint and risk scoring | PARTIALLY COMPLETED | Authenticated `scam-intelligence` coordinates local rules, DNS/TLS, reviewed indicators, optional AI, optional URL reputation, and saved results. |
 | Provider registry | PARTIALLY COMPLETED | Server-side configuration metadata includes model, text-analysis capability, and configured/disabled status; it is not an administrator dashboard or live health check. |
-| Provider quotas, usage history, budgets, circuit breakers | IMPLEMENTED LOCALLY; DEPLOYMENT REQUIRED | Atomic global, per-user, and per-provider daily request limits plus a three-failure/15-minute circuit breaker are in `202611170002_ai_provider_guardrails.sql`. Missing/invalid limits fail closed. The status/usage view and RPC are service-role-only. The migration is not deployed or live-tested. These counts do not cap provider dollar spend. |
+| Provider quotas, usage history, budgets, circuit breakers | IMPLEMENTED IN REPOSITORY; DEPLOYMENT UNVERIFIED | Atomic global, per-user, and per-provider daily request limits plus a three-failure/15-minute circuit breaker are in `202611170002_ai_provider_guardrails.sql`. Missing/invalid limits fail closed. The status/usage view and RPC are service-role-only. No deployment or live behavior was verified. These counts do not cap provider dollar spend. |
 | Flutter scan, history, reports, family features | PARTIALLY COMPLETED | Existing user flows call the centralized backend; admin provider controls and push/background monitoring are absent. |
 
 ## Database, deployment, and verification
 
-Database migrations contain scan evidence, reviewed indicators, feedback, and
-ownership protections. The local-only
+Database migrations in the repository contain scan evidence, reviewed
+indicators, feedback, and ownership protections. The
 `202611140001_operational_metrics.sql` migration adds service-role-only daily
 provider health/latency and detection-feedback evaluation views. They do not
-provide an administrator UI or provider dollar billing data. The local-only
+provide an administrator UI or provider dollar billing data. The
 `202611170002_ai_provider_guardrails.sql` migration adds request-count budgets,
 a provider circuit breaker, and service-role-only health state. Neither it nor
 the atomic family invitation quota migration is independently verified as
 deployed. Embedding and model-evaluation tables are not implemented.
-DNS-over-HTTPS, provider diagnostics, updated model
-defaults, the Cohere endpoint, and the response-normalizing parser are deployed.
-The latest evidence-linked explanation and prevention-guidance improvements are
-local and require an approved Edge Function deployment and Flutter release.
+DNS-over-HTTPS, provider diagnostics, model-selection support, the Cohere
+endpoint, and the response-normalizing parser are present in repository code;
+deployment status is unverified. Evidence-linked explanations and
+prevention-guidance code are also present, but app/function rollout was not
+verified.
 Local tests use mocked providers; they do not prove a live integration,
 free-tier eligibility, licensing compliance, or provider availability.
 
 The local Node suite covers request construction, response validation, fallback
 and primary-only routing, URL privacy-target filtering, risk handling, and
-provider failure states. Flutter analysis, widget tests, and web release build
-are run separately. A live provider test requires user-managed credentials in
+provider failure states. The current local full-suite result is 86 passed,
+including static contracts for the new migration; PostgreSQL execution and
+provider behavior remain NOT TESTED. Flutter analysis and widget tests run
+separately. A live provider test requires user-managed credentials in
 Supabase Edge Function Secrets and an approved staging environment; never paste
 credentials into chat or commit them.

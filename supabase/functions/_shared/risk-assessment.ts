@@ -25,6 +25,12 @@ type AiResult =
     provider: null;
     providers_tried: [];
     provider_attempts: [];
+  }
+  | {
+    status: "skipped_verified_threat";
+    provider: null;
+    providers_tried: [];
+    provider_attempts: [];
   };
 
 export type UnifiedAssessment = {
@@ -37,7 +43,8 @@ export type UnifiedAssessment = {
   rule_analysis: RuleAnalysisResult;
   analysis_modules: AnalysisModuleResult[];
   ai_analysis: {
-    status: AiAnalysisResult["status"] | "disabled";
+    status: AiAnalysisResult["status"] | "disabled" |
+      "skipped_verified_threat";
     provider: AiAnalysisResult["provider"];
     providers_tried: AiAnalysisResult["providers_tried"];
     provider_attempts: AiProviderAttempt[];
@@ -84,21 +91,8 @@ export function assessUnifiedRisk(
   const completedRequiredModules = applicableModules.filter((item) =>
     item.status === "completed"
   );
-  const localThreat = completeModules.some((item) =>
-    item.module === "local_indicator_database" &&
-    item.evidence_kind === "confirmed_detection"
-  );
-  const confirmedCommunityReports = completeModules
-    .filter((item) =>
-      item.module === "community_reports" &&
-      item.evidence_kind === "confirmed_detection"
-    )
-    .reduce(
-      (count, item) =>
-        count + Number(item.details?.distinct_reporters ?? 0),
-      0,
-    );
-  const verifiedThreat = localThreat || confirmedCommunityReports >= 3;
+  const localThreat = hasVerifiedLocalThreat(completeModules);
+  const verifiedThreat = hasVerifiedThreatEvidence(completeModules);
   const externalThreat = completeModules.some((item) =>
     item.module === "external_threat_intelligence" &&
     item.evidence_kind === "confirmed_detection"
@@ -214,9 +208,16 @@ export function assessUnifiedRisk(
     analysis_modules: modules,
     ai_analysis: {
       status: ai.status,
-      provider: ai.status === "disabled" ? null : ai.provider,
-      providers_tried: ai.status === "disabled" ? [] : ai.providers_tried,
-      provider_attempts: ai.status === "disabled"
+      provider: ai.status === "disabled" ||
+          ai.status === "skipped_verified_threat"
+        ? null
+        : ai.provider,
+      providers_tried: ai.status === "disabled" ||
+          ai.status === "skipped_verified_threat"
+        ? []
+        : ai.providers_tried,
+      provider_attempts: ai.status === "disabled" ||
+          ai.status === "skipped_verified_threat"
         ? []
         : ai.provider_attempts,
       signals: ai.status === "available" ? ai.analysis.signals : [],
@@ -231,6 +232,33 @@ export function assessUnifiedRisk(
     analyzed_at: analyzedAt,
     engine_version: "bantai-independent-analysis-1",
   };
+}
+
+export function hasVerifiedThreatEvidence(
+  modules: AnalysisModuleResult[],
+): boolean {
+  const completeModules = modules.filter((item) =>
+    item.status === "completed"
+  );
+  const localThreat = hasVerifiedLocalThreat(completeModules);
+  const confirmedCommunityReports = completeModules
+    .filter((item) =>
+      item.module === "community_reports" &&
+      item.evidence_kind === "confirmed_detection"
+    )
+    .reduce(
+      (count, item) =>
+        count + Number(item.details?.distinct_reporters ?? 0),
+      0,
+    );
+  return localThreat || confirmedCommunityReports >= 3;
+}
+
+function hasVerifiedLocalThreat(modules: AnalysisModuleResult[]): boolean {
+  return modules.some((item) =>
+    item.module === "local_indicator_database" &&
+    item.evidence_kind === "confirmed_detection"
+  );
 }
 
 function buildAnalysisSummary(
@@ -341,6 +369,16 @@ export function validateUnifiedAssessment(
     Array.isArray(value.analysis_modules) &&
     value.analysis_modules.length <= 50 &&
     isRecord(value.ai_analysis) &&
+    [
+      "available",
+      "disabled",
+      "not_configured",
+      "unavailable",
+      "timeout",
+      "failed",
+      "rate_limited",
+      "skipped_verified_threat",
+    ].includes(String(value.ai_analysis.status)) &&
     Array.isArray(value.ai_analysis.provider_attempts) &&
     value.ai_analysis.provider_attempts.length <= 10 &&
     value.ai_analysis.provider_attempts.every((attempt) =>
@@ -354,6 +392,9 @@ export function validateUnifiedAssessment(
         "provider_budget_exhausted",
         "user_budget_exhausted",
         "global_budget_exhausted",
+        "user_cooldown",
+        "duplicate_request",
+        "concurrency_limited",
         "circuit_open",
         "authentication_error",
         "rate_limited",

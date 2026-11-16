@@ -1026,6 +1026,7 @@ export type Database = {
         Row: {
           "circuit_open_until": string | null;
           "consecutive_failures": number;
+          "active_request_count": number;
           "daily_request_count": number;
           "health_status": string;
           "last_attempt_at": string | null;
@@ -1079,11 +1080,36 @@ export type Database = {
         };
         Returns: string;
       };
+      "reserve_ai_provider_attempt_v2": {
+        Args: {
+          "target_duplicate_window_seconds": number;
+          "target_global_limit": number;
+          "target_initial_attempt": boolean;
+          "target_max_concurrent_requests": number;
+          "target_provider": string;
+          "target_provider_limit": number;
+          "target_request_fingerprint": string;
+          "target_user_cooldown_seconds": number;
+          "target_user_id": string;
+          "target_user_limit": number;
+        };
+        Returns: string;
+      };
       "record_ai_provider_attempt": {
         Args: {
           "target_duration_ms": number;
           "target_http_status": number | null;
           "target_provider": string;
+          "target_status": string;
+        };
+        Returns: boolean;
+      };
+      "record_ai_provider_attempt_v2": {
+        Args: {
+          "target_duration_ms": number;
+          "target_http_status": number | null;
+          "target_provider": string;
+          "target_reservation_id": string;
           "target_status": string;
         };
         Returns: boolean;

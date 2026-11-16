@@ -114,6 +114,8 @@ String _analysisStatusLabel(String value) {
     'available' => 'available',
     'unavailable' => 'unavailable',
     'rate_limited' => 'rate limited',
+    'skipped_verified_threat' =>
+      'skipped because verified threat intelligence is sufficient',
     _ => 'unavailable',
   };
 }
@@ -2230,6 +2232,9 @@ String _aiProviderAttemptLabel(Map<String, dynamic> attempt) {
     'global_budget_exhausted' => 'global daily request limit reached',
     'user_budget_exhausted' => 'account daily request limit reached',
     'provider_budget_exhausted' => 'provider daily request limit reached',
+    'user_cooldown' => 'please wait before requesting another AI analysis',
+    'duplicate_request' => 'duplicate request skipped',
+    'concurrency_limited' => 'provider is busy; deterministic analysis used',
     'circuit_open' => 'temporarily disabled after repeated failures',
     'authentication_error' => 'authentication failed',
     'rate_limited' => 'rate limited',

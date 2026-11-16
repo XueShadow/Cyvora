@@ -29,6 +29,9 @@ export type AiProviderAttempt = {
     | "provider_budget_exhausted"
     | "user_budget_exhausted"
     | "global_budget_exhausted"
+    | "user_cooldown"
+    | "duplicate_request"
+    | "concurrency_limited"
     | "circuit_open"
     | "authentication_error"
     | "rate_limited"
@@ -49,15 +52,18 @@ export type AiProviderAuthorizationReason =
   | "provider_budget_exhausted"
   | "user_budget_exhausted"
   | "global_budget_exhausted"
+  | "user_cooldown"
+  | "duplicate_request"
+  | "concurrency_limited"
   | "circuit_open";
 
 export type AiProviderAuthorization =
-  | { allowed: true }
+  | { allowed: true; reservationId: string }
   | { allowed: false; reason: AiProviderAuthorizationReason };
 
 export type AiProviderAttemptController = {
   authorize(provider: AiProviderId): Promise<AiProviderAuthorization>;
-  complete(attempt: AiProviderAttempt): Promise<void>;
+  complete(attempt: AiProviderAttempt, reservationId: string): Promise<void>;
 };
 
 export type AiAnalysisResult =
@@ -222,13 +228,18 @@ export async function chatWithProviders(
   const deadline = Date.now() + totalTimeoutMs;
   const providersTried: AiProviderId[] = [];
   const providerAttempts: AiProviderAttempt[] = [];
+  let reservationId: string | null = null;
   let lastStatus: Exclude<SafetyAssistantResult["status"], "available" | "not_configured"> =
     "unavailable";
   const recordAttempt = async (attempt: AiProviderAttempt) => {
     providerAttempts.push(attempt);
     if (!attemptController) return true;
+    if (!reservationId) {
+      console.error("AI provider reservation is missing; stopping fallback.");
+      return false;
+    }
     try {
-      await attemptController.complete(attempt);
+      await attemptController.complete(attempt, reservationId);
       return true;
     } catch {
       console.error("AI provider attempt accounting failed; stopping fallback.");
@@ -237,6 +248,7 @@ export async function chatWithProviders(
   };
 
   for (const provider of providers) {
+    reservationId = null;
     if (attemptController) {
       let authorization: AiProviderAuthorization;
       try {
@@ -261,18 +273,24 @@ export async function chatWithProviders(
         }
         if (
           authorization.reason === "provider_budget_exhausted" ||
+          authorization.reason === "user_budget_exhausted" ||
+          authorization.reason === "global_budget_exhausted" ||
+          authorization.reason === "user_cooldown" ||
+          authorization.reason === "duplicate_request" ||
+          authorization.reason === "concurrency_limited" ||
           authorization.reason === "circuit_open"
         ) {
-          lastStatus = authorization.reason === "provider_budget_exhausted"
-            ? "rate_limited"
-            : "unavailable";
-          continue;
+          lastStatus = authorization.reason === "circuit_open"
+            ? "unavailable"
+            : "rate_limited";
+          break;
         }
         lastStatus = authorization.reason === "budget_check_failed"
           ? "unavailable"
           : "rate_limited";
         break;
       }
+      reservationId = authorization.reservationId;
     }
 
     const remainingMs = deadline - Date.now();
@@ -334,6 +352,7 @@ export async function chatWithProviders(
           : response.status >= 500
           ? "unavailable"
           : "failed";
+        if (response.status === 429) break;
         continue;
       }
 
@@ -437,13 +456,18 @@ export async function analyzeWithProviders(
   const deadline = Date.now() + totalTimeoutMs;
   const providersTried: AiProviderId[] = [];
   const providerAttempts: AiProviderAttempt[] = [];
+  let reservationId: string | null = null;
   let lastStatus: Exclude<AiAnalysisResult["status"], "available" | "not_configured"> =
     "unavailable";
   const recordAttempt = async (attempt: AiProviderAttempt) => {
     providerAttempts.push(attempt);
     if (!attemptController) return true;
+    if (!reservationId) {
+      console.error("AI provider reservation is missing; stopping fallback.");
+      return false;
+    }
     try {
-      await attemptController.complete(attempt);
+      await attemptController.complete(attempt, reservationId);
       return true;
     } catch {
       console.error("AI provider attempt accounting failed; stopping fallback.");
@@ -452,6 +476,7 @@ export async function analyzeWithProviders(
   };
 
   for (const provider of providers) {
+    reservationId = null;
     if (attemptController) {
       let authorization: AiProviderAuthorization;
       try {
@@ -476,12 +501,17 @@ export async function analyzeWithProviders(
         }
         if (
           authorization.reason === "provider_budget_exhausted" ||
+          authorization.reason === "user_budget_exhausted" ||
+          authorization.reason === "global_budget_exhausted" ||
+          authorization.reason === "user_cooldown" ||
+          authorization.reason === "duplicate_request" ||
+          authorization.reason === "concurrency_limited" ||
           authorization.reason === "circuit_open"
         ) {
-          lastStatus = authorization.reason === "provider_budget_exhausted"
-            ? "rate_limited"
-            : "unavailable";
-          continue;
+          lastStatus = authorization.reason === "circuit_open"
+            ? "unavailable"
+            : "rate_limited";
+          break;
         }
         lastStatus = authorization.reason === "budget_check_failed"
           ? "unavailable"
@@ -580,6 +610,7 @@ export async function analyzeWithProviders(
           : response.status >= 500
           ? "unavailable"
           : "failed";
+        if (response.status === 429) break;
         continue;
       }
 

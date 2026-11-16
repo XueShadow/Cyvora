@@ -28,13 +28,15 @@ scaffold. Recent changes improve lockfile reproducibility, bound request
 parsing, clarify startup diagnostics, and add ordinary push/PR CI.
 
 Production readiness is **not established**. GitHub Actions run
-[43931338872](https://github.com/XueShadow/Cyvora/actions/runs/43931338872)
-passed the Flutter and backend CI jobs. Public v1.0.1 Android release
+[43938813617](https://github.com/XueShadow/Cyvora/actions/runs/43938813617)
+passed for the pushed `a6e01c8` baseline. Current follow-up changes are local
+and uncommitted. Public v1.0.1 Android release
 artifacts were checksum- and signature-validated against the pinned production
 certificate, but this does not verify a future release. The iOS bundle ID
 differs in case/spelling from Android and remains unchanged pending approval.
 No exact cause for the reported HarmonyOS force-stop is known because no
-device crash log was available.
+device crash log was available. No Supabase migration/function deployment was
+verified; no live provider call was made.
 
 ## Architecture and implementation status
 
@@ -42,16 +44,16 @@ device crash log was available.
 |---|---|---|
 | Flutter client and Supabase Auth | VERIFIED | Flutter analysis and widget tests previously passed locally; run the documented checks again for the current working tree before release. |
 | Dependency reproducibility | VERIFIED | `flutter/pubspec.lock` is tracked, `material_ui` is constrained, and `flutter pub get --enforce-lockfile` passed locally. |
-| Normal push/PR CI | VERIFIED | GitHub Actions run [43931338872](https://github.com/XueShadow/Cyvora/actions/runs/43931338872) passed Flutter dependency validation, analysis, tests, Android debug build, and backend tests. |
+| Normal push/PR CI | VERIFIED | GitHub Actions run [43938813617](https://github.com/XueShadow/Cyvora/actions/runs/43938813617) passed Flutter dependency validation, analysis, tests, Android debug build, and backend tests for pushed commit `a6e01c8`. |
 | Android identity and configuration | VERIFIED | Public v1.0.1 APK/AAB validated as `com.example.cyvora_mobile`, version `1.0.1+1`, min API 24, target API 36, ARM64/ARM32/x86_64; certificate SHA-256 `d732eaa269a8707b2447c73aee5a14885d030d59b9dc7382302321c750ad3afa` matches the repository pin. No ID or signing identity was changed. |
 | Android startup and HarmonyOS | NOT TESTED | Fixed-phase startup logs exist. No Huawei crash log was supplied; the cause is unknown. The emulator was offline. |
 | Android release | PARTIALLY IMPLEMENTED | The public v1.0.1 artifacts passed checksum/signature validation. A new signed release build and device install/update test were not performed. |
 | iOS | PARTIALLY IMPLEMENTED | iOS bundle ID is `com.example.cyvoraMobile`, while Android is `com.example.cyvora_mobile`; this identity mismatch is not changed without approval. Xcode build/runtime, signing, provisioning, privacy declarations, and distribution remain unverified. |
-| Supabase auth, RLS, and Edge Functions | PARTIALLY IMPLEMENTED | Static source/migration review and Node tests were performed. Deno, Supabase CLI, a local Supabase stack, and a staging database were unavailable; live authorization behavior is unverified. |
+| Supabase auth, RLS, and Edge Functions | PARTIALLY IMPLEMENTED | Static source/migration review and Node tests were performed. Deno, Supabase CLI, a local Supabase stack, and a staging database were unavailable; live authorization behavior is unverified. New migration `202611170003_ai_request_dedup_cooldowns.sql` remains local and uncommitted. |
 | Family Protection | PARTIALLY IMPLEMENTED | Invitation tokens are hashed, expire, require verified-email matching, and are consumed under a lock. A 16 KiB request-body cap is implemented. The user reports the atomic quota migration was deployed; deployment was not independently verified, and live concurrency/family isolation tests remain unavailable. |
 | Scam detection | PARTIALLY IMPLEMENTED | Deterministic message/URL rules, evidence modules, `UNKNOWN`/unavailable states, and moderation-gated indicators exist. A new 14-case synthetic fixture passed locally; it is not representative production accuracy. |
 | Adaptive intelligence | PARTIALLY IMPLEMENTED | Reviewed examples, staged versioned datasets, evaluation gates, activation, and rollback support are documented/implemented. Real-world labeled data and operational evaluation are still required. |
-| AI providers | PARTIALLY IMPLEMENTED | Explicit provider selection, one primary plus at most one fallback, timeouts, JSON validation, atomic global/user/provider daily request budgets, and a 15-minute circuit breaker exist locally. The new migration is not deployed; limits are request counts, not billing caps. Provider availability/pricing is unverified. |
+| AI providers | PARTIALLY IMPLEMENTED | Explicit provider selection, one primary plus at most one fallback, bounded timeouts, JSON validation, global/user/provider request budgets, and a circuit breaker exist in pushed code. Local uncommitted work adds user cooldowns, HMAC request deduplication, expiring concurrency leases, stops fallback after circuit-open/HTTP 429, and skips AI when verified threat intelligence is sufficient. Deployment of the follow-up migration is unverified and PostgreSQL execution was not tested; request counts are not billing caps. Provider availability/pricing is unverified. |
 | URL reputation | PARTIALLY IMPLEMENTED | Adapter behavior and local/private destination filtering have mocked coverage. No live provider calls or pricing/retention checks were performed. |
 | Laravel | PARTIALLY IMPLEMENTED | Laravel currently serves a standalone scaffold/default page; no app integration contract was identified. Confirm whether it is intentionally required. |
 
@@ -80,8 +82,11 @@ device crash log was available.
   factors.
 - Family isolation and RLS need tests using separate accounts on an isolated
   database.
-- AI request budgets/circuit breaker exist in the working tree, but are not
-  deployed or live-tested. They limit request counts, not provider spend.
+- AI request budgets/circuit breaker exist in pushed code, but are not
+  confirmed deployed or live-tested. New cooldown/deduplication/concurrency
+  controls are uncommitted and depend on a PostgreSQL migration that has only
+  static contract coverage. These controls limit request counts, not provider
+  spend.
 - Android notification-listener content is kept in app-private preferences,
   but application-layer encryption and tested retention controls are absent.
 - Optional third-party providers may process scan text/URLs under their own
@@ -103,24 +108,24 @@ accuracy. Expand the reviewed corpus before setting release thresholds.
 ## CI and tests
 
 GitHub Actions run
-[43931338872](https://github.com/XueShadow/Cyvora/actions/runs/43931338872)
-passed both Flutter and backend jobs, including dependency validation,
-analysis, widget tests, backend Node tests, and the Android debug build.
-Production release signing remains separate.
+[43938813617](https://github.com/XueShadow/Cyvora/actions/runs/43938813617)
+passed both Flutter and backend jobs for pushed commit `a6e01c8`, including
+dependency validation, analysis, widget tests, backend Node tests, and the
+Android debug build. Production release signing remains separate.
 
-Checks rerun locally against this working tree:
+Checks rerun locally against the current working tree:
 
-- `flutter pub get --enforce-lockfile` — **PASSED**
-- `flutter analyze --fatal-infos` — **PASSED**
+- `flutter analyze` — **PASSED**
 - `flutter test --no-pub` — **PASSED, 59 tests**
-- `flutter build apk --debug --no-pub` — **PASSED**
-- Supabase Node tests — **79 passed, 0 failed** on the current working tree,
-  including provider budget/fallback/accounting and migration-contract tests.
+- `node --experimental-strip-types --test supabase/tests/*.test.mjs` —
+  **PASSED, 86 tests**, including provider quota/fallback/accounting,
+  fingerprint, verified-threat AI-skip, and static migration-contract tests.
 - Synthetic scam fixture — **PASSED, 14 examples** (included in the full Node run)
 
-Deno Edge Function tests, live RLS/family tests, Huawei device testing, and
-iOS tests remain unavailable or blocked. Public v1.0.1 APK/AAB signature and
-checksum validation passed; a new release build was not produced.
+Deno Edge Function tests, PostgreSQL migration execution, live RLS/family tests,
+Huawei device testing, and iOS tests remain unavailable or blocked. Flutter
+analysis and widget tests passed locally. Public v1.0.1 APK/AAB signature and
+checksum validation passed previously; a new release build was not produced.
 
 ## Files changed in the current repair work
 
@@ -138,8 +143,11 @@ checksum validation passed; a new release build was not produced.
 - `supabase/migrations/202611170002_ai_provider_guardrails.sql`,
   `supabase/functions/_shared/ai-provider-analysis.ts`,
   `supabase/functions/scam-intelligence/index.ts`, and tests add fail-closed
-  request budgets and provider circuit-breaker logic. Migration and Edge
-  Function deployment were not performed.
+-  daily request budgets and provider circuit-breaker logic. The uncommitted
+  `202611170003_ai_request_dedup_cooldowns.sql` and related code add user
+  cooldowns, HMAC-based duplicate suppression, concurrency leases, and skip
+  optional AI when verified threat evidence is sufficient. No migration or
+  Edge Function deployment was performed.
 - `README.md`, `flutter/README.md`, and `supabase/README.md` — setup, CI,
   testing, staging-only deployment, and platform guidance.
 - `supabase/TRUSTED_INTELLIGENCE.md` — corrects the documented Node type
@@ -149,11 +157,11 @@ checksum validation passed; a new release build was not produced.
 
 ## Release blockers and next tasks
 
-1. Rerun backend and Flutter checks against the final tree after the provider
-   guardrail changes.
-2. Apply the new provider/family quota migrations and function changes to an
-   isolated staging project, configure request limits and provider-side spend
-   caps, then execute concurrency, RLS, and family lifecycle tests.
+1. Review and commit the current local changes only after validating the SQL
+    migration in an isolated PostgreSQL/Supabase environment.
+2. Deploy the approved migrations and Edge Function to isolated staging,
+    configure request limits and provider-side spend caps, then execute
+    concurrency, RLS, and family lifecycle tests.
 3. Obtain a redacted HarmonyOS crash log and test supported Android versions
    and representative OEM devices.
 4. On macOS, confirm the intended iOS bundle identity before validating build,
