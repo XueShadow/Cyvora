@@ -108,12 +108,51 @@ and `KEY_PASSWORD` with the passwords you chose, and `KEY_ALIAS` with
 `cyvora-release`. The workflow writes `android/key.properties` automatically;
 never commit the keystore or its passwords.
 
-Update the app version in `pubspec.yaml`, then trigger a release by pushing a
-tag such as `v1.0.2`, or run the workflow manually with a tag name. Use the
-signed APK from the GitHub Release for direct installation and the AAB for
-Google Play. Debug APKs are for development and are signed with a debug key;
-do not distribute them. Local release APK/AAB builds require a valid
-`android/key.properties` and release keystore.
+Release checklist:
+
+1. Change `version:` in `pubspec.yaml` to the next `X.Y.Z+N` value. Increase
+   `N` for every production release; it must exceed the previous release's
+   build number.
+2. Commit and push the source change.
+3. Create and push a matching stable version tag, for example:
+
+   ```powershell
+   git tag v1.0.2
+   git push origin v1.0.2
+   ```
+
+   The workflow also supports manual dispatch with a `vX.Y.Z` tag name.
+4. Wait for the Android GitHub Actions workflow to succeed, then download the
+   signed APK/AAB and checksum files from the GitHub Release.
+
+The tag must match the `X.Y.Z` version. The workflow checks both the tag and
+increasing build number before publishing. Use the signed APK from the GitHub
+Release for direct installation and the AAB for Google Play. Debug APKs are for
+development and are signed with a debug key; do not distribute them. Local
+release APK/AAB builds require a valid `android/key.properties` and release
+keystore.
+
+The workflow verifies the APK/AAB archive and signatures, the production
+certificate, package ID, Android API levels, native ABIs, required permissions,
+notification-listener declaration, tag/version match, and increasing version
+code. It stages the universal APK and AAB with SHA-256 checksums and publishes
+those files plus the APK certificate fingerprint. Build outputs are also
+retained as a GitHub Actions artifact for 30 days.
+
+For local development, use Flutter 3.47.9 stable, Java 17, and an installed
+Android SDK. From this `flutter` directory:
+
+```powershell
+flutter pub get --enforce-lockfile
+flutter analyze --fatal-infos
+flutter test --no-pub
+flutter build apk --debug
+```
+
+The debug APK is written to
+`build\app\outputs\flutter-apk\app-debug.apk`. Release APK/AAB builds require
+the production signing configuration; never replace the production key to
+work around an update-signature error.
 
 Play Protect may still warn about a sideloaded app, especially one that offers
 notification scanning. A production signature does not establish Play Protect
@@ -126,15 +165,49 @@ source you trust.
 The Android build uses Flutter's minimum supported API level (API 24 / Android
 7.0 or newer with the pinned Flutter toolchain). The GitHub release APK is a
 universal APK containing the Flutter-supported ARM 32-bit, ARM 64-bit, and
-x86_64 native libraries. HarmonyOS compatibility can vary by device and release;
-a Huawei security warning is not an Android compatibility message and should
-not be bypassed.
+x86_64 native libraries. It does not contain 32-bit x86 libraries. HarmonyOS
+compatibility can vary by device and release; a Huawei security warning is not
+an Android compatibility message and should not be bypassed.
 
 Android backup is disabled so local preferences and queued notification previews
 aren't copied into device backups; this also means local data won't be restored
 from an Android backup after reinstalling or moving devices. Cleartext HTTP is
 disabled to require encrypted network transport. Release publishing runs Flutter
 analysis and tests before producing signed APK/AAB files.
+
+### Device verification status
+
+The release validator verifies packaged API and ABI metadata; it cannot prove
+runtime compatibility with every phone or OEM-modified Android system.
+
+| Device / environment | Result |
+| --- | --- |
+| Pixel 4 emulator, Android API 35 | A debug build installed and launched once; this is not a full release or regression test. |
+| Huawei MatePad 11.5, HarmonyOS 4.3.0 | The production APK installed, but the app later closed on launch. The cause is unresolved; no device crash log was available. |
+| Android API 24 (Android 7.0) device | Not runtime-tested; this is the declared minimum API. |
+| ARM 32-bit, ARM 64-bit, and x86_64 device hardware | Included in the universal APK; not all ABI/device combinations have been runtime-tested. |
+| Other Android devices and OEM variants | Not runtime-tested. |
+
+### Install and launch troubleshooting
+
+- Check that the device runs Android 7.0 / API 24 or newer. The universal APK
+  supports ARM 32-bit, ARM 64-bit, and x86_64; it does not support 32-bit x86.
+- Install updates from the same production signing identity. An APK signed with
+  a different key cannot update the installed app; avoid uninstalling if that
+  could remove local data.
+- If an app closes silently, capture device logs while reproducing the issue:
+
+  ```powershell
+  adb logcat -c
+  # Reproduce the launch failure, then:
+  adb logcat -d -s AndroidRuntime:E ActivityTaskManager:E > cyvora-crash.txt
+  ```
+
+  Review logs for private data before sharing them. A successful install only
+  confirms basic package/API acceptance; it does not confirm runtime behavior.
+- Do not disable or bypass Play Protect or a device manufacturer's security
+  warning. A signed APK can still be warned about when sideloaded, and such a
+  warning is not proof that the device is incompatible.
 
 ## Dashboard integrations
 
