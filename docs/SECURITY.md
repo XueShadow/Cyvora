@@ -21,13 +21,13 @@ This is not a penetration test or a claim of production certification.
   explicit provider/model selection and limits a scan to one primary and at
   most one fallback. Provider output is validated before use. Local
   pushed code adds fail-closed global, per-user, and per-provider daily request
-  limits plus a provider circuit breaker. Uncommitted follow-up adds
-  user-level cooldowns, HMAC-based duplicate suppression, provider concurrency
-  leases, and stops fallback after circuit-open or HTTP 429 responses. It also
-  skips optional AI when verified threat intelligence is already sufficient.
-  Deployment of the new follow-up migration is unverified and PostgreSQL
-  execution was not tested. Request
-  counts do not limit dollar spend.
+  limits, a provider circuit breaker, user cooldowns, HMAC-based duplicate
+  suppression, and provider concurrency leases. It stops fallback after
+  circuit-open or HTTP 429 responses and skips optional AI when verified threat
+  intelligence is sufficient. Migration deployment and PostgreSQL execution
+  are unverified. Local uncommitted fixes defer dedupe writes until quota
+  reservation succeeds and preserve scan reservation IDs for completion
+  accounting. Request counts do not limit dollar spend.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
 
@@ -43,11 +43,12 @@ This is not a penetration test or a claim of production certification.
 - **Family isolation — NOT TESTED:** ownership and RLS were inspected, but
   separate-user integration tests against a local or staging database were
   unavailable.
-- **Provider spend and resilience — PARTIALLY IMPLEMENTED:** local uncommitted
-  changes add cooldown/deduplication/concurrency controls; pushed code already
-  has atomic request-count budgets and a three-failure/15-minute circuit
-  breaker. Deployment is not confirmed or live-tested, and the uncommitted SQL
-  has only static contract coverage. Request counts do not cap provider
+- **Provider spend and resilience — PARTIALLY IMPLEMENTED:** pushed migrations
+  002–003 and the Edge Function integration implement request-count budgets,
+  cooldown/deduplication/concurrency controls, and a circuit breaker. Database
+  deployment and SQL concurrency behavior are unverified; the local
+  dedupe-order and scan accounting fixes are uncommitted. Request counts do
+  not cap provider
   billing, so provider-side spending limits remain required.
 - **External data processing — REQUIRES USER CONSENT:** optional AI or URL
   reputation analysis can send minimized scan data or the submitted URL to
@@ -74,11 +75,12 @@ This is not a penetration test or a claim of production certification.
 - Do not expose the Supabase service-role key to Flutter or ordinary users.
 - Do not deploy migrations, change production secrets/settings, or release a
   signed build without separate approval and a reviewed deployment plan.
-- The latest pushed baseline is `a6e01c8`; the current AI cooldown,
-  deduplication, concurrency, and verified-threat skip changes are uncommitted.
-  The latest recorded CI run for the pushed baseline passed, and the current
-  local test run passed 86 backend tests plus Flutter analysis and 59 Flutter
-  tests. These results do not replace database, provider, or device testing.
+- Commit `0313782` pushed migrations 001–003 and their Edge Function
+  integration. This establishes presence in GitHub only: local database,
+  staging, and production application are unverified. The current local
+  dedupe-order adjustment and scan reservation-accounting fix are uncommitted.
+  The local Node suite passes 89 tests and Flutter tests pass 59; these do not
+  replace database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the updated Edge Function, the deployed version
   retains the prior race condition.

@@ -35,9 +35,12 @@ unrecognized signal labels and malformed actions are discarded. There is no
 provider dollar-spend budget. Server-side controls reserve daily request counts atomically across global,
 per-user, and per-provider limits. All three limits must be configured as
 positive integers (maximum 100,000) or AI calls fail closed as
-unavailable/not configured. The follow-up cooldown/deduplication/concurrency
-controls are present in an uncommitted migration; deployment is unverified.
-They must be applied before they can run. Per-provider settings use
+unavailable/not configured. The cooldown/deduplication/concurrency controls in migration 003 are present
+in GitHub at commit `0313782`; deployment is unverified. The current local
+worktree has uncommitted fixes to record fingerprints only after quota
+reservation succeeds and to preserve scan reservation IDs for completion
+accounting. The backend mock suite passes 89 tests; this is not a PostgreSQL
+or live-provider test. Per-provider settings use
 `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
 `AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
 provider-side spending limits separately.
@@ -140,6 +143,12 @@ fetched.
 
 ## Database, deployment, and verification
 
+Migrations 001–003 and the v2 Edge Function RPC integration are present in
+GitHub at commit `0313782`. No evidence confirms they were applied to a local,
+staging, or production database. PostgreSQL execution, Edge Function runtime
+tests, and live provider tests are NOT TESTED. The current worktree's SQL
+dedupe-order and scan reservation-accounting fixes are uncommitted.
+
 Database migrations in the repository contain scan evidence, reviewed
 indicators, feedback, and ownership protections. The
 `202611140001_operational_metrics.sql` migration adds service-role-only daily
@@ -158,10 +167,10 @@ Local tests use mocked providers; they do not prove a live integration,
 free-tier eligibility, licensing compliance, or provider availability.
 
 The local Node suite covers request construction, response validation, fallback
-and primary-only routing, URL privacy-target filtering, risk handling, and
-provider failure states. The current local full-suite result is 86 passed,
-including static contracts for the new migration; PostgreSQL execution and
-provider behavior remain NOT TESTED. Flutter analysis and widget tests run
-separately. A live provider test requires user-managed credentials in
+and primary-only routing, URL privacy-target filtering, risk handling,
+reservation completion IDs, provider failure states, and static migration
+contracts. The current local full-suite result is 89 passed; PostgreSQL
+execution and provider behavior remain NOT TESTED. Flutter analysis and 59
+widget tests also passed locally. A live provider test requires user-managed credentials in
 Supabase Edge Function Secrets and an approved staging environment; never paste
 credentials into chat or commit them.

@@ -518,6 +518,7 @@ export async function analyzeWithProviders(
           : "rate_limited";
         break;
       }
+      reservationId = authorization.reservationId;
     }
 
     const remainingMs = deadline - Date.now();

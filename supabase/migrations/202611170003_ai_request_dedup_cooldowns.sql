@@ -58,8 +58,8 @@ as $$
 declare
   request_time timestamptz := pg_catalog.clock_timestamp();
   previous_request_at timestamptz;
+  previous_fingerprint_at timestamptz;
   active_attempt_count bigint;
-  deduplicated_user_id uuid;
   reserve_result text;
   new_reservation_id uuid;
 begin
@@ -110,20 +110,16 @@ begin
       return 'user_cooldown';
     end if;
 
-    insert into public.ai_request_deduplication as existing (
-      user_id, request_fingerprint, requested_at
-    )
-    values (
-      target_user_id, target_request_fingerprint, request_time
-    )
-    on conflict (user_id, request_fingerprint) do update
-      set requested_at = excluded.requested_at
-      where existing.requested_at <=
-        request_time - pg_catalog.make_interval(
-          secs => target_duplicate_window_seconds
-        )
-    returning user_id into deduplicated_user_id;
-    if not found then
+    select requested_at
+      into previous_fingerprint_at
+      from public.ai_request_deduplication
+     where user_id = target_user_id
+       and request_fingerprint = target_request_fingerprint
+     for update;
+    if previous_fingerprint_at >
+       request_time - pg_catalog.make_interval(
+         secs => target_duplicate_window_seconds
+       ) then
       return 'duplicate_request';
     end if;
   end if;
@@ -149,6 +145,15 @@ begin
   end if;
 
   if target_initial_attempt then
+    insert into public.ai_request_deduplication (
+      user_id, request_fingerprint, requested_at
+    )
+    values (
+      target_user_id, target_request_fingerprint, request_time
+    )
+    on conflict (user_id, request_fingerprint) do update
+      set requested_at = excluded.requested_at;
+
     update public.ai_user_daily_usage
        set last_request_at = request_time
      where user_id = target_user_id;

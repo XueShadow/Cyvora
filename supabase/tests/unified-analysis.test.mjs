@@ -779,6 +779,96 @@ test("AI provider circuit denial does not consume fallback quota", async () => {
   assert.equal(result.provider_attempts[0].status, "circuit_open");
 });
 
+test("fallback requests complete the reservation issued for that provider", async () => {
+  const authorizations = [];
+  const completions = [];
+  let fetchCalls = 0;
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    if (fetchCalls === 1) return new Response("unavailable", { status: 503 });
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            signals: [],
+            summary: "The available evidence does not establish a threat.",
+            recommended_actions: ["Verify requests through an official channel."],
+          }),
+        },
+      }],
+    }), { status: 200 });
+  }, {
+    async authorize(provider) {
+      authorizations.push(provider);
+      return {
+        allowed: true,
+        reservationId: provider === "gemini"
+          ? "reservation-gemini"
+          : "reservation-groq",
+      };
+    },
+    async complete(attempt, reservationId) {
+      completions.push({ provider: attempt.provider, reservationId });
+    },
+  });
+
+  assert.equal(result.status, "available");
+  assert.deepEqual(authorizations, ["gemini", "groq"]);
+  assert.deepEqual(completions, [
+    { provider: "gemini", reservationId: "reservation-gemini" },
+    { provider: "groq", reservationId: "reservation-groq" },
+  ]);
+});
+
+test("provider timeouts record the reserved attempt before returning", async () => {
+  const completions = [];
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+      })[name];
+    },
+  }, async () => {
+    throw new DOMException("Provider timed out.", "AbortError");
+  }, {
+    async authorize() {
+      return { allowed: true, reservationId: "reservation-timeout" };
+    },
+    async complete(attempt, reservationId) {
+      completions.push({ provider: attempt.provider, status: attempt.status, reservationId });
+    },
+  });
+
+  assert.equal(result.status, "timeout");
+  assert.deepEqual(completions, [{
+    provider: "gemini",
+    status: "timeout",
+    reservationId: "reservation-timeout",
+  }]);
+});
+
 test("daily quota denial does not consume fallback provider quota", async () => {
   for (const reason of [
     "provider_budget_exhausted",
@@ -1685,21 +1775,68 @@ test("AI request controls deduplicate, cool down users, and cap concurrency", as
     resolve(projectRoot, "supabase/migrations/202611170003_ai_request_dedup_cooldowns.sql"),
     "utf8",
   );
+  const edgeFunction = await readFile(
+    resolve(projectRoot, "supabase/functions/scam-intelligence/index.ts"),
+    "utf8",
+  );
+  assert.match(edgeFunction, /admin\.rpc\(\s*"reserve_ai_provider_attempt_v2"/);
+  assert.match(edgeFunction, /admin\.rpc\(\s*"record_ai_provider_attempt_v2"/);
+  assert.match(edgeFunction, /target_reservation_id:\s*reservationId/);
+  assert.match(edgeFunction, /createAiProviderAttemptController\(admin, user\.id, requestFingerprint\)/);
+  assert.doesNotMatch(edgeFunction, /admin\.rpc\(\s*"reserve_ai_provider_attempt"/);
+  assert.doesNotMatch(edgeFunction, /admin\.rpc\(\s*"record_ai_provider_attempt"/);
   assert.match(migration, /create table if not exists public\.ai_request_deduplication/);
   assert.match(migration, /request_fingerprint text not null/);
-  assert.match(migration, /requested_at <=[\s\S]*target_duplicate_window_seconds/);
+  assert.match(migration, /previous_fingerprint_at >[\s\S]*target_duplicate_window_seconds/);
   assert.match(migration, /target_user_cooldown_seconds/);
+  assert.match(migration, /previous_request_at >[\s\S]*target_user_cooldown_seconds/);
   assert.match(migration, /target_max_concurrent_requests/);
   assert.match(migration, /concurrency_limited/);
   assert.match(migration, /target_initial_attempt/);
+  assert.match(migration, /delete from public\.ai_provider_attempt_leases[\s\S]*where expires_at <= request_time/);
+  assert.match(migration, /reservation_id uuid primary key/);
+  assert.match(migration, /user_id uuid not null references auth\.users\(id\) on delete cascade,[\s\S]*provider text not null/);
+  assert.match(migration, /select requested_at[\s\S]*for update/);
+  assert.match(migration, /reserve_result := public\.reserve_ai_provider_attempt/);
+  const dedupCheckIndex = migration.indexOf("select requested_at");
+  const quotaReservationIndex = migration.indexOf(
+    "reserve_result := public.reserve_ai_provider_attempt",
+  );
+  const dedupInsertIndex = migration.indexOf(
+    "insert into public.ai_request_deduplication (",
+  );
+  assert.ok(dedupCheckIndex < quotaReservationIndex);
+  assert.ok(quotaReservationIndex < dedupInsertIndex);
   assert.match(migration, /create table if not exists public\.ai_provider_attempt_leases/);
-  assert.match(migration, /expires_at timestamptz not null/);
+  assert.match(migration, /expires_at > pg_catalog\.clock_timestamp\(\)[\s\S]*for update/);
+  assert.match(migration, /if lease_provider <> target_provider then/);
+  assert.match(migration, /delete from public\.ai_provider_attempt_leases[\s\S]*where reservation_id = target_reservation_id/);
   assert.match(migration, /revoke all on function public\.reserve_ai_provider_attempt_v2/i);
   assert.match(migration, /revoke all on function public\.record_ai_provider_attempt_v2/i);
   assert.match(migration, /grant execute on function public\.reserve_ai_provider_attempt_v2[\s\S]*to service_role;/i);
   assert.match(migration, /grant execute on function public\.record_ai_provider_attempt_v2[\s\S]*to service_role;/i);
 });
 
+test("AI provider circuit breaker has half-open success and failure recovery paths", async () => {
+  const migration = await readFile(
+    resolve(projectRoot, "supabase/migrations/202611170002_ai_provider_guardrails.sql"),
+    "utf8",
+  );
+  assert.match(
+    migration,
+    /when circuit_open_until is not null\s+and circuit_open_until <= request_time\s+then request_time \+ interval '90 seconds'/i,
+  );
+  assert.match(
+    migration,
+    /when current_circuit_until > recorded_at\s+then current_failures[\s\S]*else 0/i,
+  );
+  assert.match(
+    migration,
+    /when was_half_open_probe\s+then 3[\s\S]*recorded_at \+ interval '15 minutes'/i,
+  );
+  assert.match(migration, /revoke all on function public\.reserve_ai_provider_attempt[\s\S]*from public, anon, authenticated/i);
+  assert.match(migration, /revoke all on function public\.record_ai_provider_attempt[\s\S]*from public, anon, authenticated/i);
+});
 test("risk validation accepts provider budget and circuit statuses", () => {
   const statuses = [
     "budget_unconfigured",
