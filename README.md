@@ -8,6 +8,7 @@ family security features.
 - [`flutter/`](flutter/) - Flutter application and app-specific setup guide.
 - [`supabase/`](supabase/) - Supabase migrations and Edge Functions.
 - [`laravel/`](laravel/) - Laravel project.
+- [`docs/`](docs/) - Production readiness, audit, and security reports.
 
 ## Run the app
 
@@ -15,12 +16,17 @@ Install Flutter, then run these commands from the repository root:
 
 ```powershell
 cd flutter
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter run
 ```
 
-Supabase configuration, backend setup, and app details are in
-[`flutter/README.md`](flutter/README.md).
+Supabase configuration, backend setup, testing, and release safety are in
+[`flutter/README.md`](flutter/README.md) and [`supabase/README.md`](supabase/README.md).
+The push/PR checks are defined in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
+[production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),
+[security notes](docs/SECURITY.md), and
+[verified audit results](docs/CYVORA_PRODUCTION_AUDIT.md) before release.
 
 ## Download an Android release
 

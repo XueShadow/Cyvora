@@ -1040,6 +1040,16 @@ export type Database = {
         Args: { "invite_token_hash": string; "joining_user_id": string };
         Returns: string;
       };
+      "create_family_invite": {
+        Args: {
+          "p_expires_at": string;
+          "p_family_id": string;
+          "p_invited_by": string;
+          "p_invited_email": string;
+          "p_token_hash": string;
+        };
+        Returns: string;
+      };
       "consume_scam_intelligence_quota": {
         Args: { "target_user_id": string };
         Returns: boolean;

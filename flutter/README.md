@@ -3,6 +3,11 @@
 Flutter client for Cyvora, with Supabase authentication, scam analysis, and
 family security features on iOS, Android, and web.
 
+See the repository's [production readiness report](../docs/CYVORA_PRODUCTION_READINESS.md),
+[security notes](../docs/SECURITY.md), and
+[verified audit results](../docs/CYVORA_PRODUCTION_AUDIT.md) before attempting
+a release.
+
 ## Configure Supabase
 
 1. The Cyvora project URL and publishable key are configured as app defaults.
@@ -217,12 +222,17 @@ Home's Quick Tools.
 Apply the Supabase migration and deploy the invitation function before using
 these data-backed features:
 
+> **Deployment safety:** Use an isolated staging Supabase project first. These
+> commands change the linked database and function deployment. Verify the
+> migration diff and project reference before running them; do not target
+> production without an independently reviewed change and explicit approval.
+
 ```powershell
 npx.cmd --yes supabase login
-npx.cmd --yes supabase link --project-ref wohfevsfhzgxejcfcrek
-npx.cmd --yes supabase db push
+npx.cmd --yes supabase link --project-ref YOUR_STAGING_PROJECT_REF
+npx.cmd --yes supabase db push --project-ref YOUR_STAGING_PROJECT_REF
 npx.cmd --yes supabase functions deploy family-invitations `
-  --project-ref wohfevsfhzgxejcfcrek
+  --project-ref YOUR_STAGING_PROJECT_REF
 ```
 
 The login command requires a Supabase personal access token; enter it only in
@@ -433,10 +443,14 @@ deletes its module evidence.
 Apply the independent-analysis and URL-reputation migrations before deploying
 the updated function:
 
+Use a staging project, review the pending migration diff, and pass the same
+staging project reference explicitly to each command. Do not use these
+commands against production without separate approval.
+
 ```powershell
-npx.cmd --yes supabase db push
+npx.cmd --yes supabase db push --project-ref YOUR_STAGING_PROJECT_REF
 npx.cmd --yes supabase functions deploy scam-intelligence `
-  --project-ref wohfevsfhzgxejcfcrek
+  --project-ref YOUR_STAGING_PROJECT_REF
 ```
 
 `202611130003_independent_analysis.sql` adds analysis-module evidence, reviewed
@@ -458,10 +472,12 @@ The Node analysis tests can be run from the project root:
 node --experimental-strip-types --test supabase/tests/*.test.mjs
 ```
 
-For Flutter, run `flutter analyze` and `flutter test` from `flutter\`. To
-validate database access controls, apply the migration to a local Supabase
-stack and test with separate authenticated user sessions; the service-only
-write RPC and self-only select policies are defined in the migration.
+For Flutter, run `flutter pub get --enforce-lockfile`, `flutter analyze
+--fatal-infos`, and `flutter test --no-pub` from `flutter\`. To validate
+database access controls, apply migrations to a local Supabase stack and test
+with separate authenticated user sessions; the service-only write RPC and
+self-only select policies are defined in the migration. Never use production
+credentials for automated tests.
 
 These checks can miss scams or flag legitimate content. A low-risk result is
 not proof that an item is safe. Optional third-party AI analysis is generated
@@ -479,6 +495,27 @@ through the Privacy Policy contact details.
 ## Run checks
 
 ```powershell
-flutter analyze
-flutter test
+flutter pub get --enforce-lockfile
+flutter analyze --fatal-infos
+flutter test --no-pub
+flutter build apk --debug --no-pub
 ```
+
+Run backend analysis tests from the repository root:
+
+```powershell
+$testFiles = Get-ChildItem .\supabase\tests\*.test.mjs | ForEach-Object { $_.FullName }
+node --experimental-strip-types --test $testFiles
+```
+
+## iOS build and release readiness
+
+The iOS project files and plugin registration are present, but this repository
+has not been built or tested with Xcode. The current bundle identifier
+`com.example.cyvoraMobile` is a placeholder, and distribution signing,
+provisioning, App Store metadata, and a production callback configuration
+remain unverified. Do not change the identifier or signing identity without
+approval. On a macOS host, validate a debug build and device launch first;
+then configure the intended production identifier, signing, privacy
+disclosures, and Supabase redirect URLs before preparing a release. iOS release
+readiness is not established by Android or Flutter unit-test success.

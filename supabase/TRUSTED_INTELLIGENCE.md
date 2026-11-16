@@ -28,7 +28,7 @@ Apply `202611150003_trusted_scam_intelligence.sql` and deploy the updated `scam-
 
 ```powershell
 $testFiles = Get-ChildItem .\supabase\tests\*.test.mjs | ForEach-Object { $_.FullName }
-node --test $testFiles
+node --experimental-strip-types --test $testFiles
 ```
 
 The review queue and dataset controls are available from the profile's **Community scam intelligence** entry for users whose server-issued App Metadata contains the appropriate role.

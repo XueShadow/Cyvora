@@ -39,6 +39,7 @@ node_modules/
 .env
 .env.*
 !laravel/.env.example
+!supabase/.env.example
 *.pem
 *.crt
 *.key

@@ -1,0 +1,74 @@
+# Cyvora security notes
+
+**Scope:** Static review of repository code and local tests. No production
+database, secret, provider credential, or live user account was accessed.
+This is not a penetration test or a claim of production certification.
+
+## Current safeguards
+
+- Flutter uses Supabase Auth and the public publishable/anon key. Service-role
+  access is restricted to server-side functions and database operations.
+- Protected Edge Functions manually validate bearer tokens with Supabase Auth
+  and apply MFA step-up checks before privileged operations.
+- Database migrations define ownership and Row-Level Security policies.
+  Family invitation consumption uses a service-role-only RPC; invitations are
+  stored as hashes, expire, and require a verified matching email.
+- Family invitation JSON parsing is bounded to 16 KiB. Scam analysis uses the
+  same bounded request-body helper.
+- URL analysis rejects private/reserved destinations from external reputation
+  lookups. DNS/TLS checks do not fetch the submitted page or follow redirects.
+- Optional AI and URL reputation calls are user-selected. AI routing requires
+  explicit provider/model selection and limits a scan to one primary and at
+  most one fallback. Provider output is validated before use.
+- Startup diagnostics log fixed phase labels and an exception type, not the
+  exception message, token, URL, or user content.
+
+## Confirmed residual risks and unverified controls
+
+- **Invitation rate-limit race — FIX IMPLEMENTED, DEPLOYMENT REQUIRED:** a new
+  migration adds a per-family transaction advisory lock around the quota check
+  and insert; the Edge Function now uses that RPC. The migration has not been
+  applied to production, and no live concurrent-request test was available.
+- **MFA enrollment — PARTIALLY IMPLEMENTED:** AAL2 is required for users who
+  have a verified factor, but enrollment is not mandatory for all accounts.
+- **Family isolation — NOT TESTED:** ownership and RLS were inspected, but
+  separate-user integration tests against a local or staging database were
+  unavailable.
+- **Provider spend and resilience — PARTIALLY IMPLEMENTED:** request timeouts,
+  failure classification, and aggregate status/latency records exist. There
+  is no provider-specific billing budget or circuit breaker.
+- **External data processing — REQUIRES USER CONSENT:** optional AI or URL
+  reputation analysis can send minimized scan data or the submitted URL to
+  selected third parties. Provider retention, plan availability, and pricing
+  were not independently verified. `urlscan.io` may retain submitted URLs
+  according to provider policy.
+- **Local notification data — PARTIALLY IMPLEMENTED:** the opt-in Android
+  notification listener stores notification text and package metadata in
+  app-private SharedPreferences. Application-layer encryption and a tested
+  retention policy are not implemented.
+- **Android/OEM crash — NOT TESTED:** no redacted Huawei HarmonyOS crash log
+  was supplied, so the launch failure's root cause is unknown.
+- **iOS distribution — REQUIRES MANUAL ACTION:** the current bundle identifier
+  is a placeholder; signing, provisioning, privacy disclosures, and a release
+  build need a macOS/Xcode environment.
+
+## Safe handling and validation
+
+- Never put production keys, signing passwords, or private credentials in
+  source, `.env.example`, logs, issues, or chat. Use the secure Supabase
+  Dashboard/CLI secret configuration.
+- Do not expose the Supabase service-role key to Flutter or ordinary users.
+- Do not deploy migrations, change production secrets/settings, or release a
+  signed build without separate approval and a reviewed deployment plan.
+- Until the atomic invitation-quota migration is applied to the intended
+  environment together with the updated Edge Function, the deployed version
+  retains the prior race condition.
+- Run backend unit tests and Flutter tests without production credentials.
+  Validate RLS and family account isolation against an isolated database with
+  multiple test accounts.
+- Review redacted device logs before sharing them; remove tokens, notification
+  content, addresses, email addresses, and other personal data.
+
+See [the verified audit](CYVORA_PRODUCTION_AUDIT.md) and
+[the production readiness report](CYVORA_PRODUCTION_READINESS.md) for
+evidence, test results, and remaining blockers.

@@ -206,21 +206,6 @@ async function sendInvitation(
     });
   }
 
-  const { count, error: countError } = await admin
-    .from('family_invites')
-    .select('id', { count: 'exact', head: true })
-    .eq('family_id', familyId)
-    .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
-  if (countError) {
-    console.error('Family invitations: rate-limit lookup failed.', countError);
-    return jsonResponse(500, { error: 'Could not send this invitation.' });
-  }
-  if ((count ?? 0) >= 5) {
-    return jsonResponse(429, {
-      error: 'This family has reached the hourly invitation limit.',
-    });
-  }
-
   const { error: expiredInviteError } = await admin
     .from('family_invites')
     .delete()
@@ -240,29 +225,42 @@ async function sendInvitation(
   const tokenHash = await hashToken(token);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     .toISOString();
-  const { data: invitation, error: insertError } = await admin
-    .from('family_invites')
-    .insert({
-      family_id: familyId,
-      invited_email: email,
-      token_hash: tokenHash,
-      invited_by: userId,
-      expires_at: expiresAt,
-    })
-    .select('id')
-    .single();
-  if (insertError) {
-    if (insertError.code === '23505') {
+  const { data: invitationId, error: inviteError } = await admin.rpc(
+    'create_family_invite',
+    {
+      p_family_id: familyId,
+      p_invited_email: email,
+      p_token_hash: tokenHash,
+      p_invited_by: userId,
+      p_expires_at: expiresAt,
+    },
+  );
+  if (inviteError) {
+    if (inviteError.message === 'family_invite_rate_limit') {
+      return jsonResponse(429, {
+        error: 'This family has reached the hourly invitation limit.',
+      });
+    }
+    if (inviteError.code === '42501') {
+      return jsonResponse(403, {
+        error: 'Only the family owner can invite members.',
+      });
+    }
+    if (inviteError.code === '23505') {
       return jsonResponse(409, {
         error: 'That address already has a pending invitation.',
       });
     }
-    console.error('Family invitations: invite creation failed.', insertError);
+    console.error('Family invitations: invite creation failed.', inviteError);
+    return jsonResponse(500, { error: 'Could not create the invitation.' });
+  }
+  if (!invitationId) {
+    console.error('Family invitations: invite creation returned no ID.');
     return jsonResponse(500, { error: 'Could not create the invitation.' });
   }
 
   return jsonResponse(200, {
-    invitationId: invitation.id,
+    invitationId,
     emailSent: false,
     invitationCode: token,
     expiresAt,
