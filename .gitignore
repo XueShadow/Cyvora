@@ -13,6 +13,7 @@ Thumbs.db
 **/build/
 **/.metadata
 **/pubspec.lock
+!flutter/pubspec.lock
 **/coverage/
 **/.packages
 **/.symlinks/

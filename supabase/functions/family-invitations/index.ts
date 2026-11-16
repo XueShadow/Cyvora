@@ -3,6 +3,7 @@ import {
   type SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requiresMfaChallenge } from '../_shared/mfa-auth.ts';
+import { readJsonObjectBody } from '../_shared/request-body.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,12 +75,16 @@ async function handleRequest(request: Request) {
     );
   }
 
-  let body: Record<string, unknown>;
+  let parsedBody: Awaited<ReturnType<typeof readJsonObjectBody>>;
   try {
-    body = await request.json();
+    parsedBody = await readJsonObjectBody(request, 16 * 1024);
   } catch {
     return jsonResponse(400, { error: 'Request body must be valid JSON.' });
   }
+  if (!parsedBody.ok) {
+    return jsonResponse(parsedBody.status, { error: parsedBody.error });
+  }
+  const body = parsedBody.value;
 
   if (body.action === 'invite') {
     return await sendInvitation(admin, user.id, user.email, body);

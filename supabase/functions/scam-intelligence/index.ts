@@ -28,6 +28,7 @@ import {
   validateUnifiedAssessment,
 } from "../_shared/risk-assessment.ts";
 import { requiresMfaChallenge } from "../_shared/mfa-auth.ts";
+import { readLimitedBody } from "../_shared/request-body.ts";
 import {
   assignDatasetSplit,
   evaluateTrustedDataset,
@@ -109,44 +110,6 @@ function parseAssistantMessages(value: unknown): SafetyAssistantMessage[] | null
   }
   if (messages[messages.length - 1].role !== "user") return null;
   return messages;
-}
-
-async function readLimitedBody(
-  request: Request,
-  maxBytes: number,
-): Promise<{ text: string } | { tooLarge: true }> {
-  const contentLength = request.headers.get("Content-Length");
-  if (
-    contentLength &&
-    /^\d+$/.test(contentLength) &&
-    Number(contentLength) > maxBytes
-  ) return { tooLarge: true };
-
-  const reader = request.body?.getReader();
-  if (!reader) return { text: "" };
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maxBytes) {
-        await reader.cancel();
-        return { tooLarge: true };
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { text: new TextDecoder().decode(bytes) };
 }
 
 function parseUrl(input: string): URL | null {

@@ -9,7 +9,7 @@ Future<String?> extractScreenshotText() async {
       (defaultTargetPlatform != TargetPlatform.android &&
           defaultTargetPlatform != TargetPlatform.iOS)) {
     throw UnsupportedError(
-      'Screenshot text extraction is currently available on Android, iOS, and web.',
+      'Screenshot text extraction is currently available on Android and iOS.',
     );
   }
 
