@@ -1244,6 +1244,14 @@ void main() {
               'status': 'billing_required',
               'http_status': 402,
             },
+            {
+              'provider': 'gemini',
+              'status': 'circuit_open',
+            },
+            {
+              'provider': 'groq',
+              'status': 'provider_budget_exhausted',
+            },
           ],
         },
       );
@@ -1316,6 +1324,14 @@ void main() {
     );
     expect(
       find.text('SambaNova: billing or a paid plan is required (HTTP 402)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Google Gemini: temporarily disabled after repeated failures'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Groq: provider daily request limit reached'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

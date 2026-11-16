@@ -349,6 +349,12 @@ export function validateUnifiedAssessment(
       typeof attempt.status === "string" &&
       [
         "available",
+        "budget_unconfigured",
+        "budget_check_failed",
+        "provider_budget_exhausted",
+        "user_budget_exhausted",
+        "global_budget_exhausted",
+        "circuit_open",
         "authentication_error",
         "rate_limited",
         "billing_required",

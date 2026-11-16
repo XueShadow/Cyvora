@@ -556,6 +556,186 @@ test("AI-provider outage is reported separately and cannot change the verdict", 
   assert.equal(result.evidence.some((item) => item.startsWith("AI-provider")), false);
 });
 
+test("AI provider budgets deny calls before contacting external providers", async () => {
+  let fetchCalls = 0;
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    throw new Error("Budget denial must prevent provider calls.");
+  }, {
+    async authorize() {
+      return { allowed: false, reason: "global_budget_exhausted" };
+    },
+    async complete() {
+      assert.fail("Denied provider attempts must not be recorded as requests.");
+    },
+  });
+
+  assert.equal(result.status, "rate_limited");
+  assert.deepEqual(result.providers_tried, []);
+  assert.equal(fetchCalls, 0);
+  assert.equal(result.provider_attempts[0].status, "global_budget_exhausted");
+});
+
+test("AI calls fail closed when daily request budgets are not configured", async () => {
+  let fetchCalls = 0;
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    throw new Error("Unconfigured budgets must prevent provider calls.");
+  }, {
+    async authorize() {
+      return { allowed: false, reason: "budget_unconfigured" };
+    },
+    async complete() {
+      assert.fail("Unconfigured provider attempts must not be completed.");
+    },
+  });
+
+  assert.equal(result.status, "not_configured");
+  assert.equal(fetchCalls, 0);
+  assert.equal(result.provider_attempts[0].status, "budget_unconfigured");
+});
+
+test("assistant chat is also gated by provider request budgets", async () => {
+  let fetchCalls = 0;
+  const result = await chatWithProviders([{
+    role: "user",
+    content: "How do I verify this message?",
+  }], {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    throw new Error("Budget denial must prevent provider calls.");
+  }, {
+    async authorize() {
+      return { allowed: false, reason: "user_budget_exhausted" };
+    },
+    async complete() {
+      assert.fail("Denied provider attempts must not be recorded as requests.");
+    },
+  });
+
+  assert.equal(result.status, "rate_limited");
+  assert.equal(fetchCalls, 0);
+  assert.equal(result.provider_attempts[0].status, "user_budget_exhausted");
+});
+
+test("AI provider circuit denial allows the single configured fallback", async () => {
+  const attempted = [];
+  const completed = [];
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  }, async (url) => {
+    attempted.push(url);
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            signals: [],
+            summary: "The supplied evidence does not establish a threat.",
+            recommended_actions: [],
+          }),
+        },
+      }],
+    }), { status: 200 });
+  }, {
+    async authorize(provider) {
+      return provider === "gemini"
+        ? { allowed: false, reason: "circuit_open" }
+        : { allowed: true };
+    },
+    async complete(attempt) {
+      completed.push(attempt);
+    },
+  });
+
+  assert.equal(result.status, "available");
+  assert.equal(result.provider, "groq");
+  assert.equal(attempted.length, 1);
+  assert.deepEqual(completed.map((attempt) => attempt.provider), ["groq"]);
+  assert.equal(result.provider_attempts[0].status, "circuit_open");
+});
+
+test("AI outcome accounting failure stops provider fallback", async () => {
+  let fetchCalls = 0;
+  const result = await analyzeWithProviders({
+    contentType: "message",
+    content: "Synthetic text.",
+    ruleFindings: [],
+    threatFindings: [],
+  }, {
+    get(name) {
+      return ({
+        AI_PROVIDER_ORDER: "gemini,groq",
+        GEMINI_API_KEY: "gemini-key",
+        GEMINI_MODEL: "gemini-model",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODEL: "groq-model",
+      })[name];
+    },
+  }, async () => {
+    fetchCalls++;
+    return new Response("unavailable", { status: 503 });
+  }, {
+    async authorize() {
+      return { allowed: true };
+    },
+    async complete() {
+      throw new Error("Accounting failure");
+    },
+  });
+
+  assert.equal(result.status, "unavailable");
+  assert.equal(fetchCalls, 1);
+  assert.deepEqual(result.providers_tried, ["gemini"]);
+});
+
 test("provider order is validated, deduplicated, and capped at primary plus fallback", () => {
   assert.deepEqual(
     parseProviderOrder("gemini, groq, INVALID, gemini,openrouter"),
@@ -989,6 +1169,18 @@ test("the server environment template lists supported providers with blank secre
     "PULSEDIVE_API_KEY",
     "AI_FALLBACK_ENABLED",
     "AI_PROVIDER_ORDER",
+    "AI_GLOBAL_DAILY_REQUEST_LIMIT",
+    "AI_USER_DAILY_REQUEST_LIMIT",
+    "AI_GEMINI_DAILY_REQUEST_LIMIT",
+    "AI_GROQ_DAILY_REQUEST_LIMIT",
+    "AI_OPENROUTER_DAILY_REQUEST_LIMIT",
+    "AI_MISTRAL_DAILY_REQUEST_LIMIT",
+    "AI_CLOUDFLARE_DAILY_REQUEST_LIMIT",
+    "AI_SAMBANOVA_DAILY_REQUEST_LIMIT",
+    "AI_COHERE_DAILY_REQUEST_LIMIT",
+    "AI_NVIDIA_DAILY_REQUEST_LIMIT",
+    "AI_ZAI_DAILY_REQUEST_LIMIT",
+    "AI_HUGGINGFACE_DAILY_REQUEST_LIMIT",
   ]) {
     assert.match(template, new RegExp(`^${name}=$`, "m"));
   }
@@ -1272,6 +1464,53 @@ test("the URL reputation migration permits persisted external provider evidence"
   );
   assert.match(migration, /external_threat_intelligence/);
   assert.match(migration, /analysis_module_results_module_check/);
+});
+
+test("AI provider guardrails reserve bounded budgets and keep controls service-only", async () => {
+  const migration = await readFile(
+    resolve(projectRoot, "supabase/migrations/202611170002_ai_provider_guardrails.sql"),
+    "utf8",
+  );
+  assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /target_global_limit is null/i);
+  assert.match(migration, /target_user_limit is null/i);
+  assert.match(migration, /target_provider_limit is null/i);
+  assert.match(migration, /circuit_open_until[\s\S]*interval '15 minutes'/i);
+  assert.match(migration, /probe_lease_until[\s\S]*interval '90 seconds'/i);
+  assert.match(migration, /enable row level security/i);
+  assert.match(migration, /revoke all on function public\.reserve_ai_provider_attempt/i);
+  assert.match(migration, /revoke all on function public\.record_ai_provider_attempt/i);
+  assert.match(migration, /grant execute on function public\.reserve_ai_provider_attempt[\s\S]*to service_role;/i);
+  assert.match(migration, /grant execute on function public\.record_ai_provider_attempt[\s\S]*to service_role;/i);
+  assert.match(migration, /grant select on public\.ai_provider_health to service_role;/i);
+  assert.match(migration, /security_invoker = true/i);
+});
+
+test("risk validation accepts provider budget and circuit statuses", () => {
+  const statuses = [
+    "budget_unconfigured",
+    "budget_check_failed",
+    "global_budget_exhausted",
+    "user_budget_exhausted",
+    "provider_budget_exhausted",
+    "circuit_open",
+  ];
+  const assessment = assessUnifiedRisk(
+    cleanRuleResult,
+    [],
+    {
+      status: "unavailable",
+      provider: null,
+      providers_tried: [],
+      provider_attempts: statuses.map((status) => ({
+        provider: "gemini",
+        status,
+        duration_ms: 0,
+      })),
+    },
+    fixedTime,
+  );
+  assert.equal(validateUnifiedAssessment(assessment), true);
 });
 
 test("trusted intelligence requires moderator review and admin-only release", async () => {

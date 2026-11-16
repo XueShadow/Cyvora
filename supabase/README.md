@@ -21,6 +21,11 @@ AI providers remain disabled unless explicitly selected with a provider order,
 model ID, API key, and enabled flag. Configure at most one primary and one
 fallback. Verify current model availability, account terms, and pricing before
 enabling a provider. Ollama is intentionally excluded.
+AI calls also fail closed unless positive global, per-user, and per-provider
+daily request limits are configured (up to 100,000 per limit). These are
+request-count limits, not currency/billing caps; configure provider-side spend
+controls separately. The guardrail migration must be applied to an approved
+staging environment before enabling budgeted AI.
 
 See [provider and capability status](PROVIDER_STATUS.md) for what is mocked,
 configured, or still unverified, and

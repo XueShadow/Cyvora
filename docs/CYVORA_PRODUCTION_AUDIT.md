@@ -2,7 +2,7 @@
 
 **Audit date:** 2026-11-17  
 **Repository:** `XueShadow/Cyvora`  
-**Inspected baseline:** `eb6bc1d` on `main`; follow-up evaluation, CI, and documentation repairs are in the working tree
+**Inspected baseline:** `56da7a3` on `main`; current AI provider guardrail changes are local and uncommitted
 **Production systems:** No production database, secrets, signing identity, or migrations were changed.
 
 ## Status key
@@ -25,16 +25,16 @@ Production readiness is not established. The local release build is intentionall
 |---|---|---|
 | Flutter application | **PASS** | Flutter analysis and widget tests pass. The app uses Supabase Auth and calls server-side analysis; screen OCR uses ML Kit on Android/iOS. |
 | Dependency resolution | **PASS** | Added the existing generated `flutter/pubspec.lock` to version control by unignoring only that path, pinned `material_ui` from `any` to `^1.11.0`, and ran `flutter pub get --enforce-lockfile` successfully. |
-| CI for normal changes | **PARTIALLY IMPLEMENTED** | Added `.github/workflows/ci.yml` for pushes, pull requests, dependency validation, analysis, widget tests, backend Node tests, and an Android debug build. Initial GitHub Actions run `43926426390` failed: the backend could not find ignored `supabase/.env.example`, and Maven Central returned HTTP 429 while Gradle downloaded Kotlin artifacts. The template is now explicitly unignored and Gradle caching was added; a follow-up run is pending. |
+| CI for normal changes | **PASS** | GitHub Actions run [43931338872](https://github.com/XueShadow/Cyvora/actions/runs/43931338872) passed Flutter dependency validation, analysis, widget tests, backend Node tests, and Android debug build. |
 | Android debug build | **PASS** | `flutter build apk --debug --no-pub` completed successfully. |
 | Android release build | **BLOCKED** | `flutter build apk --release` stopped at `validateReleaseSigning` because local release signing configuration is not available. This is intentional; signing protections were not weakened. |
-| Android identity and release guard | **PARTIALLY IMPLEMENTED** | Source preserves application ID and namespace `com.example.cyvora_mobile`; `pubspec.yaml` remains `1.0.1+1`. The release validator checks package/version, minimum API 24, target API at least 35, ARM64/ARM32/x86_64 ABIs, permissions, notification-listener manifest entries, and the established production signer. This audit could not validate a newly built signed artifact. |
+| Android identity and release guard | **PASS for published v1.0.1 artifacts** | Public APK/AAB checksum and signature checks passed for `com.example.cyvora_mobile`, version `1.0.1+1`, min API 24, target API 36, ARM64/ARM32/x86_64, signer SHA-256 `d732eaa269a8707b2447c73aee5a14885d030d59b9dc7382302321c750ad3afa`. This does not validate a future release. |
 | Android startup diagnosis | **NOT TESTED** | Added startup phase logs and a Supabase-init failure log containing only the exception type. No Huawei logcat/crash report was available, and `emulator-5554` is offline. The exact crash cause remains unknown. |
-| iOS readiness | **PARTIALLY IMPLEMENTED** | iOS project files, plugin registration, callback URL scheme, and iOS 15 deployment target exist. The bundle identifier is still `com.example.cyvoraMobile`; no Xcode/iOS build was possible on this Windows host. |
+| iOS readiness | **PARTIALLY IMPLEMENTED** | iOS bundle ID is `com.example.cyvoraMobile`, distinct from Android `com.example.cyvora_mobile`; no identity change was made. Xcode/iOS build, signing, provisioning, privacy declarations, and runtime are unverified on this Windows host. |
 | Supabase Edge Functions and RLS | **PARTIALLY IMPLEMENTED** | Both configured functions use `verify_jwt = false` but manually validate bearer tokens with `auth.getUser`; they also apply the MFA challenge check before privileged operations. SQL migrations define RLS and restrict the family-invitation consumption RPC to `service_role`. No live database/RLS tests were run. |
-| Family Protection | **PARTIALLY IMPLEMENTED** | Invitation codes are random, stored as hashes, expire, require the invited verified email, and are consumed under a row lock. Owner checks and family membership policies exist. Added a 16 KiB bounded JSON-object parser. A new migration and RPC now serialize the hourly quota check with invitation insertion; it is not deployed or live-concurrency tested. End-to-end tests for revocation, removal, leaving/deleting families, shared preferences, alerts, and cross-family isolation remain missing. |
+| Family Protection | **PARTIALLY IMPLEMENTED** | Invitation codes are random, stored as hashes, expire, require the invited verified email, and are consumed under a row lock. Owner checks and family membership policies exist. The user reports the atomic quota migration was deployed, but this was not independently verified. End-to-end invitation lifecycle and cross-family tests remain missing. |
 | Scam detection and trusted intelligence | **PARTIALLY IMPLEMENTED** | Deterministic modules, evidence normalization, unavailable/unknown states, moderation, redaction, reviewed examples, dataset evaluation gates, and versioned snapshots are present. A 14-case synthetic English/Filipino/Taglish evaluation fixture passed locally (7 true positives, 7 true negatives); it is only a regression fixture, not evidence of real-world accuracy. |
-| AI providers | **PARTIALLY IMPLEMENTED** | Explicit provider selection, required model IDs, one primary plus at most one fallback, bounded timeouts, structured-response validation, failure classification, and minimization are implemented. URL path tokens and query values are redacted. Usage limits are not provider-billing budgets, and no circuit breaker prevents repeated calls to unavailable providers. |
+| AI providers | **PARTIALLY IMPLEMENTED** | Existing explicit provider selection, one primary plus at most one fallback, timeouts, structured-response validation, failure classification, and minimization remain. Local uncommitted changes add atomic global/user/per-provider request budgets and a three-failure/15-minute circuit breaker. Database migration, live behavior, and provider-side billing controls are unverified. |
 | URL reputation | **PASS for mocked tests** | Adapter request/response defects and local-host filtering were corrected in the preceding commit. Tests use mocked provider responses; live provider compatibility, pricing, and quotas were not tested. |
 | Laravel | **PARTIALLY IMPLEMENTED** | Laravel is a standalone scaffold; `routes/web.php` serves the default welcome page. No Flutter or Supabase integration was found. Keep it only if a separate Laravel service is intended. |
 
@@ -57,20 +57,17 @@ Production readiness is not established. The local release build is intentionall
    The implementation rejects web and unsupported platforms; its message now correctly lists Android and iOS only.
 
 5. **Ordinary CI coverage was missing.**  
-   A separate CI workflow now runs on branch pushes and pull requests to
-   `main`. Its first run verified dependency validation, Flutter analysis, and
-   Flutter tests, but failed in the backend job because the clean checkout
-   lacked the ignored environment template and in the Android build after a
-   Maven Central HTTP 429. A narrow ignore exception and Gradle cache are now
-   configured; a follow-up run is pending. It does not use release signing
-   secrets. Production release remains separate.
+   The separate CI workflow runs on branch pushes and pull requests to `main`.
+   GitHub Actions run `43931338872` passed Flutter dependency validation,
+   analysis, tests, backend tests, and Android debug build. It does not use
+   release signing secrets; production release remains separate.
 
 ## Security and production risks still requiring work
 
-- **Invitation rate-limit race:** the deployed function's hourly cap uses a count followed by an insert, so concurrent requests can pass the same check. The working tree now adds a per-family advisory transaction lock and service-role-only RPC for the count-plus-insert path. The migration and function were not deployed; production remains exposed until the change is reviewed and applied.
+- **Invitation rate-limit race:** a per-family advisory transaction lock and service-role-only RPC were added. The user reports deployment, but it was not independently verified; live concurrent-request tests remain necessary.
 - **Family isolation is not live-verified:** policies and ownership checks were reviewed statically, but no two-account integration tests were run against a staging database.
 - **Shared notification previews:** the Android listener persists notification title/text/package name in app-private SharedPreferences, with a queue limit. This is expected for the opt-in feature, but it is not application-layer encrypted; reassess retention and device-threat assumptions before claiming strong at-rest protection.
-- **No provider circuit breaker or provider-specific spend budget:** bounded request timeouts and a per-user server quota do not cap provider billing.
+- **AI request guardrails require deployment:** local changes add request-count budgets and a provider circuit breaker; they are not deployed or live-tested. Request counts do not cap provider billing.
 - **No live provider verification:** no provider credentials were accessed and no third-party API calls were made.
 - **MFA enforcement is opt-in:** the database policy requires AAL2 for users who have a verified factor; it does not force every account to enroll MFA.
 - **iOS distribution identity/signing is incomplete:** current bundle identifier is a placeholder and iOS build/signing was not checked.
@@ -89,7 +86,8 @@ No exact HarmonyOS failure cause can be inferred from source inspection alone. T
 | `flutter analyze --fatal-infos` | **PASS** |
 | `flutter test --no-pub` | **PASS** |
 | `flutter build apk --debug --no-pub` | **PASS** |
-| Supabase Node tests (`node --experimental-strip-types --test supabase/tests/*.test.mjs`) | **PASS — 73 passed, 0 failed** |
+| Supabase Node tests (`node --experimental-strip-types --test supabase/tests/*.test.mjs`) | **PASS — 80 passed, 0 failed** |
+| AI provider budget/circuit regression tests | **PASS — 7 focused tests (5 mocked behavior, 1 static migration contract, 1 risk-validation case); PostgreSQL behavior not executed** |
 | Synthetic scam evaluation fixture | **PASS — 14 examples; 7 true positives, 7 true negatives, 0 false positives/negatives (not a real-world accuracy estimate)** |
 | Atomic family invitation quota regression tests | **PASS — 2 static contract tests; database concurrency was not executable locally** |
 | Android release APK build | **BLOCKED — required local production signing config is unavailable** |
@@ -98,7 +96,7 @@ No exact HarmonyOS failure cause can be inferred from source inspection alone. T
 | Live Supabase migrations, RLS, auth, and family integration tests | **NOT TESTED — Supabase CLI and a staging database are unavailable** |
 | Android physical-device/Huawei test | **BLOCKED — no physical device or crash log; emulator is offline** |
 | iOS build and runtime tests | **NOT TESTED — Xcode is unavailable on Windows** |
-| GitHub Actions run `43926426390` | **FAIL — Flutter dependency validation, analysis, and tests passed; backend failed because the ignored template was absent; Android debug build failed after Maven Central HTTP 429. Fixes are present; follow-up run pending.** |
+| GitHub Actions run `43931338872` | **PASS — Flutter and backend jobs passed, including Android debug build.** |
 
 No production migrations were applied, no production secrets were read or modified, and no signing identity or application ID was changed.
 

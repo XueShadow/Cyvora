@@ -22,6 +22,10 @@ flutter run
 
 Supabase configuration, backend setup, testing, and release safety are in
 [`flutter/README.md`](flutter/README.md) and [`supabase/README.md`](supabase/README.md).
+Optional AI remains disabled unless explicitly selected; enabling it also
+requires server-side daily request limits. These limits are not billing caps.
+See [`supabase/PROVIDER_STATUS.md`](supabase/PROVIDER_STATUS.md) before enabling
+an external provider or applying the corresponding database migration.
 The push/PR checks are defined in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
 [production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),

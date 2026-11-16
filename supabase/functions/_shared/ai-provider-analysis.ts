@@ -24,6 +24,12 @@ export type AiProviderAttempt = {
   duration_ms: number;
   status:
     | "available"
+    | "budget_unconfigured"
+    | "budget_check_failed"
+    | "provider_budget_exhausted"
+    | "user_budget_exhausted"
+    | "global_budget_exhausted"
+    | "circuit_open"
     | "authentication_error"
     | "rate_limited"
     | "billing_required"
@@ -35,6 +41,23 @@ export type AiProviderAttempt = {
     | "timeout"
     | "network_error";
   http_status?: number;
+};
+
+export type AiProviderAuthorizationReason =
+  | "budget_unconfigured"
+  | "budget_check_failed"
+  | "provider_budget_exhausted"
+  | "user_budget_exhausted"
+  | "global_budget_exhausted"
+  | "circuit_open";
+
+export type AiProviderAuthorization =
+  | { allowed: true }
+  | { allowed: false; reason: AiProviderAuthorizationReason };
+
+export type AiProviderAttemptController = {
+  authorize(provider: AiProviderId): Promise<AiProviderAuthorization>;
+  complete(attempt: AiProviderAttempt): Promise<void>;
 };
 
 export type AiAnalysisResult =
@@ -178,6 +201,7 @@ export async function chatWithProviders(
   messages: SafetyAssistantMessage[],
   environment: ProviderEnvironment,
   fetcher: typeof fetch = fetch,
+  attemptController?: AiProviderAttemptController,
 ): Promise<SafetyAssistantResult> {
   const providers = getConfiguredProviders(environment);
   const configuredProviders = environment.get("AI_FALLBACK_ENABLED")
@@ -200,8 +224,57 @@ export async function chatWithProviders(
   const providerAttempts: AiProviderAttempt[] = [];
   let lastStatus: Exclude<SafetyAssistantResult["status"], "available" | "not_configured"> =
     "unavailable";
+  const recordAttempt = async (attempt: AiProviderAttempt) => {
+    providerAttempts.push(attempt);
+    if (!attemptController) return true;
+    try {
+      await attemptController.complete(attempt);
+      return true;
+    } catch {
+      console.error("AI provider attempt accounting failed; stopping fallback.");
+      return false;
+    }
+  };
 
   for (const provider of providers) {
+    if (attemptController) {
+      let authorization: AiProviderAuthorization;
+      try {
+        authorization = await attemptController.authorize(provider.id);
+      } catch {
+        console.error("AI provider budget authorization failed.");
+        authorization = { allowed: false, reason: "budget_check_failed" };
+      }
+      if (!authorization.allowed) {
+        providerAttempts.push({
+          provider: provider.id,
+          status: authorization.reason,
+          duration_ms: 0,
+        });
+        if (authorization.reason === "budget_unconfigured") {
+          return {
+            status: "not_configured",
+            provider: null,
+            providers_tried: providersTried,
+            provider_attempts: providerAttempts,
+          };
+        }
+        if (
+          authorization.reason === "provider_budget_exhausted" ||
+          authorization.reason === "circuit_open"
+        ) {
+          lastStatus = authorization.reason === "provider_budget_exhausted"
+            ? "rate_limited"
+            : "unavailable";
+          continue;
+        }
+        lastStatus = authorization.reason === "budget_check_failed"
+          ? "unavailable"
+          : "rate_limited";
+        break;
+      }
+    }
+
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
       lastStatus = "timeout";
@@ -247,12 +320,15 @@ export async function chatWithProviders(
       });
 
       if (!response.ok) {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: getHttpFailureStatus(response.status),
           http_status: response.status,
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         lastStatus = response.status === 429
           ? "rate_limited"
           : response.status >= 500
@@ -265,23 +341,29 @@ export async function chatWithProviders(
       try {
         body = await response.json();
       } catch {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: "invalid_response",
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         lastStatus = "failed";
         continue;
       }
 
       const reply = parseChatReply(body);
       if (reply) {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: "available",
           http_status: response.status,
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         return {
           status: "available",
           reply,
@@ -290,21 +372,27 @@ export async function chatWithProviders(
           provider_attempts: providerAttempts,
         };
       }
-      providerAttempts.push({
+      if (!await recordAttempt({
         provider: provider.id,
         status: "invalid_response",
         http_status: response.status,
         duration_ms: elapsedMs(),
-      });
+      })) {
+        lastStatus = "unavailable";
+        break;
+      }
       lastStatus = "failed";
     } catch (error) {
       const timedOut = error instanceof DOMException &&
         (error.name === "AbortError" || error.name === "TimeoutError");
-      providerAttempts.push({
+      if (!await recordAttempt({
         provider: provider.id,
         status: timedOut ? "timeout" : "network_error",
         duration_ms: elapsedMs(),
-      });
+      })) {
+        lastStatus = "unavailable";
+        break;
+      }
       lastStatus = timedOut ? "timeout" : "unavailable";
     } finally {
       clearTimeout(timeout);
@@ -328,6 +416,7 @@ export async function analyzeWithProviders(
   },
   environment: ProviderEnvironment,
   fetcher: typeof fetch = fetch,
+  attemptController?: AiProviderAttemptController,
 ): Promise<AiAnalysisResult> {
   const providers = getConfiguredProviders(environment);
   const configuredProviders = environment.get("AI_FALLBACK_ENABLED")
@@ -350,8 +439,57 @@ export async function analyzeWithProviders(
   const providerAttempts: AiProviderAttempt[] = [];
   let lastStatus: Exclude<AiAnalysisResult["status"], "available" | "not_configured"> =
     "unavailable";
+  const recordAttempt = async (attempt: AiProviderAttempt) => {
+    providerAttempts.push(attempt);
+    if (!attemptController) return true;
+    try {
+      await attemptController.complete(attempt);
+      return true;
+    } catch {
+      console.error("AI provider attempt accounting failed; stopping fallback.");
+      return false;
+    }
+  };
 
   for (const provider of providers) {
+    if (attemptController) {
+      let authorization: AiProviderAuthorization;
+      try {
+        authorization = await attemptController.authorize(provider.id);
+      } catch {
+        console.error("AI provider budget authorization failed.");
+        authorization = { allowed: false, reason: "budget_check_failed" };
+      }
+      if (!authorization.allowed) {
+        providerAttempts.push({
+          provider: provider.id,
+          status: authorization.reason,
+          duration_ms: 0,
+        });
+        if (authorization.reason === "budget_unconfigured") {
+          return {
+            status: "not_configured",
+            provider: null,
+            providers_tried: providersTried,
+            provider_attempts: providerAttempts,
+          };
+        }
+        if (
+          authorization.reason === "provider_budget_exhausted" ||
+          authorization.reason === "circuit_open"
+        ) {
+          lastStatus = authorization.reason === "provider_budget_exhausted"
+            ? "rate_limited"
+            : "unavailable";
+          continue;
+        }
+        lastStatus = authorization.reason === "budget_check_failed"
+          ? "unavailable"
+          : "rate_limited";
+        break;
+      }
+    }
+
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
       lastStatus = "timeout";
@@ -428,12 +566,15 @@ export async function analyzeWithProviders(
       });
 
       if (!response.ok) {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: getHttpFailureStatus(response.status),
           http_status: response.status,
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         lastStatus = response.status === 429
           ? "rate_limited"
           : response.status >= 500
@@ -446,23 +587,29 @@ export async function analyzeWithProviders(
       try {
         body = await response.json();
       } catch {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: "invalid_response",
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         lastStatus = "failed";
         continue;
       }
 
       const analysis = parseAiAnalysis(body);
       if (analysis) {
-        providerAttempts.push({
+        if (!await recordAttempt({
           provider: provider.id,
           status: "available",
           http_status: response.status,
           duration_ms: elapsedMs(),
-        });
+        })) {
+          lastStatus = "unavailable";
+          break;
+        }
         return {
           status: "available",
           analysis,
@@ -471,21 +618,27 @@ export async function analyzeWithProviders(
           provider_attempts: providerAttempts,
         };
       }
-      providerAttempts.push({
+      if (!await recordAttempt({
         provider: provider.id,
         status: "invalid_response",
         http_status: response.status,
         duration_ms: elapsedMs(),
-      });
+      })) {
+        lastStatus = "unavailable";
+        break;
+      }
       lastStatus = "failed";
     } catch (error) {
       const timedOut = error instanceof DOMException &&
         (error.name === "AbortError" || error.name === "TimeoutError");
-      providerAttempts.push({
+      if (!await recordAttempt({
         provider: provider.id,
         status: timedOut ? "timeout" : "network_error",
         duration_ms: elapsedMs(),
-      });
+      })) {
+        lastStatus = "unavailable";
+        break;
+      }
       lastStatus = timedOut ? "timeout" : "unavailable";
     } finally {
       clearTimeout(timeout);

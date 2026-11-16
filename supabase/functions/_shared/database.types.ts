@@ -1022,6 +1022,21 @@ export type Database = {
         ComputedFields: never;
         Relationships: [];
       };
+      "ai_provider_health": {
+        Row: {
+          "circuit_open_until": string | null;
+          "consecutive_failures": number;
+          "daily_request_count": number;
+          "health_status": string;
+          "last_attempt_at": string | null;
+          "last_duration_ms": number | null;
+          "last_status": string | null;
+          "last_success_at": string | null;
+          "provider": string;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
     };
     Functions: {
       "activate_trusted_dataset": {
@@ -1052,6 +1067,25 @@ export type Database = {
       };
       "consume_scam_intelligence_quota": {
         Args: { "target_user_id": string };
+        Returns: boolean;
+      };
+      "reserve_ai_provider_attempt": {
+        Args: {
+          "target_global_limit": number;
+          "target_provider": string;
+          "target_provider_limit": number;
+          "target_user_id": string;
+          "target_user_limit": number;
+        };
+        Returns: string;
+      };
+      "record_ai_provider_attempt": {
+        Args: {
+          "target_duration_ms": number;
+          "target_http_status": number | null;
+          "target_provider": string;
+          "target_status": string;
+        };
         Returns: boolean;
       };
       "is_family_member": {

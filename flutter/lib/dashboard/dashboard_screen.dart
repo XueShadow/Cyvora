@@ -2225,6 +2225,12 @@ String _aiProviderAttemptLabel(Map<String, dynamic> attempt) {
   final provider = _providerLabel(attempt['provider']);
   final status = switch (attempt['status']) {
     'available' => 'responded',
+    'budget_unconfigured' => 'daily usage limits are not configured',
+    'budget_check_failed' => 'daily usage limits could not be checked',
+    'global_budget_exhausted' => 'global daily request limit reached',
+    'user_budget_exhausted' => 'account daily request limit reached',
+    'provider_budget_exhausted' => 'provider daily request limit reached',
+    'circuit_open' => 'temporarily disabled after repeated failures',
     'authentication_error' => 'authentication failed',
     'rate_limited' => 'rate limited',
     'billing_required' => 'billing or a paid plan is required',

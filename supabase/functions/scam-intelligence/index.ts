@@ -14,6 +14,9 @@ import {
 import {
   analyzeWithProviders,
   chatWithProviders,
+  type AiProviderAttempt,
+  type AiProviderAttemptController,
+  type AiProviderAuthorizationReason,
   type AiAnalysisResult,
   type SafetyAssistantMessage,
 } from "../_shared/ai-provider-analysis.ts";
@@ -83,6 +86,74 @@ function toJson(value: unknown): Json {
     return result;
   }
   return null;
+}
+
+function getDailyRequestLimit(name: string): number | null {
+  const value = Deno.env.get(name)?.trim();
+  if (!value || !/^[1-9]\d*$/.test(value)) return null;
+  const limit = Number(value);
+  return Number.isSafeInteger(limit) && limit <= 100000 ? limit : null;
+}
+
+function createAiProviderAttemptController(
+  admin: AdminClient,
+  userId: string,
+): AiProviderAttemptController {
+  return {
+    async authorize(provider) {
+      const globalLimit = getDailyRequestLimit(
+        "AI_GLOBAL_DAILY_REQUEST_LIMIT",
+      );
+      const userLimit = getDailyRequestLimit("AI_USER_DAILY_REQUEST_LIMIT");
+      const providerLimit = getDailyRequestLimit(
+        `AI_${provider.toUpperCase()}_DAILY_REQUEST_LIMIT`,
+      );
+      if (globalLimit === null || userLimit === null || providerLimit === null) {
+        return { allowed: false, reason: "budget_unconfigured" };
+      }
+
+      const { data, error } = await admin.rpc(
+        "reserve_ai_provider_attempt",
+        {
+          target_user_id: userId,
+          target_provider: provider,
+          target_global_limit: globalLimit,
+          target_user_limit: userLimit,
+          target_provider_limit: providerLimit,
+        },
+      );
+      if (error) {
+        console.error("Scam intelligence: AI provider budget check failed.");
+        return { allowed: false, reason: "budget_check_failed" };
+      }
+      if (data === "allowed") return { allowed: true };
+      const reason: AiProviderAuthorizationReason | null = data ===
+          "budget_unconfigured" || data === "global_budget_exhausted" ||
+          data === "user_budget_exhausted" ||
+          data === "provider_budget_exhausted" || data === "circuit_open"
+        ? data
+        : null;
+      return {
+        allowed: false,
+        reason: reason ?? "budget_check_failed",
+      };
+    },
+    async complete(attempt: AiProviderAttempt) {
+      const { data, error } = await admin.rpc(
+        "record_ai_provider_attempt",
+        {
+          target_provider: attempt.provider,
+          target_status: attempt.status,
+          target_duration_ms: attempt.duration_ms,
+          target_http_status: attempt.http_status ?? null,
+        },
+      );
+      if (error || data !== true) {
+        console.error("Scam intelligence: AI provider outcome could not be recorded.");
+        throw new Error("AI provider outcome could not be recorded.");
+      }
+    },
+  };
 }
 
 function parseAssistantMessages(value: unknown): SafetyAssistantMessage[] | null {
@@ -1352,7 +1423,12 @@ async function handleRequest(request: Request) {
       });
     }
 
-    const response = await chatWithProviders(messages, Deno.env);
+    const response = await chatWithProviders(
+      messages,
+      Deno.env,
+      fetch,
+      createAiProviderAttemptController(admin, user.id),
+    );
     if (response.status !== "available") {
       return jsonResponse(response.status === "rate_limited" ? 429 : 503, {
         error: response.status === "not_configured"
@@ -1515,15 +1591,20 @@ async function handleRequest(request: Request) {
     provider_attempts: [];
   } =
     useAi
-      ? await analyzeWithProviders({
-        contentType: type,
-        content: type === "url"
-          ? indicators.filter((item) => item.type === "url")
-            .map((item) => item.value).join("\n")
-          : input,
-        ruleFindings: localResult.indicators,
-        threatFindings: allModules.flatMap((item) => item.evidence).slice(0, 20),
-      }, Deno.env)
+      ? await analyzeWithProviders(
+        {
+          contentType: type,
+          content: type === "url"
+            ? indicators.filter((item) => item.type === "url")
+              .map((item) => item.value).join("\n")
+            : input,
+          ruleFindings: localResult.indicators,
+          threatFindings: allModules.flatMap((item) => item.evidence).slice(0, 20),
+        },
+        Deno.env,
+        fetch,
+        createAiProviderAttemptController(admin, user.id),
+      )
       : {
         status: "disabled",
         provider: null,

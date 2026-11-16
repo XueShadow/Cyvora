@@ -33,13 +33,22 @@ be disabled with `AI_FALLBACK_ENABLED=false`, and per-provider disable flags
 remain available. Calls use bounded timeouts and validated JSON output. Valid
 summaries are retained when optional fields differ from the expected format;
 unrecognized signal labels and malformed actions are discarded. There is no
-provider-specific spend budget or circuit breaker. The authenticated Edge
-Function has a separate per-user request quota; it is not a provider billing
-budget.
+provider dollar-spend budget. New server-side controls reserve daily request
+counts atomically across global, per-user, and per-provider limits. All three
+limits must be configured as positive integers (maximum 100,000) or AI calls
+fail closed as unavailable/not configured. Per-provider settings use
+`AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
+`AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
+provider-side spending limits separately.
 Provider attempts now record duration and status; the
 `provider_health_daily` view aggregates recent AI and URL provider outcomes.
-It is restricted to `service_role` and is not an administrator UI or a live
-credential test. Fallback can send minimized scan data to more than one provider.
+The new `ai_provider_health` view reports daily AI request counts, latest
+status/latency, and circuit state. Both views are restricted to `service_role`
+and are not an administrator UI or a live credential test. After three
+consecutive provider failures, the new circuit breaker opens for 15 minutes;
+only one half-open probe is allowed for 90 seconds after cooldown. Accounting
+failures stop fallback routing. Fallback can send minimized scan data to more
+than one provider.
 HTTP 402, 404, and 410 responses now identify billing, missing-model/endpoint,
 and retired-model failures separately. There are no code-default model IDs;
 configure each selected provider's `*_MODEL` value only after reviewing its
@@ -118,7 +127,7 @@ fetched.
 | Similarity, embeddings, campaign grouping, drift evaluation, model training | NOT IMPLEMENTED | `detection_feedback_daily` provides service-role-only, aggregate feedback counts for evaluation. Feedback and reports do not automatically train or update a model. |
 | Unified analysis endpoint and risk scoring | PARTIALLY COMPLETED | Authenticated `scam-intelligence` coordinates local rules, DNS/TLS, reviewed indicators, optional AI, optional URL reputation, and saved results. |
 | Provider registry | PARTIALLY COMPLETED | Server-side configuration metadata includes model, text-analysis capability, and configured/disabled status; it is not an administrator dashboard or live health check. |
-| Provider quotas, usage history, budgets, circuit breakers | PARTIALLY COMPLETED | Provider attempt counts, statuses, and average latency are available through a service-role-only daily view after applying the local migration. The existing daily scan quota is not a provider quota or billing tracker. |
+| Provider quotas, usage history, budgets, circuit breakers | IMPLEMENTED LOCALLY; DEPLOYMENT REQUIRED | Atomic global, per-user, and per-provider daily request limits plus a three-failure/15-minute circuit breaker are in `202611170002_ai_provider_guardrails.sql`. Missing/invalid limits fail closed. The status/usage view and RPC are service-role-only. The migration is not deployed or live-tested. These counts do not cap provider dollar spend. |
 | Flutter scan, history, reports, family features | PARTIALLY COMPLETED | Existing user flows call the centralized backend; admin provider controls and push/background monitoring are absent. |
 
 ## Database, deployment, and verification
@@ -127,8 +136,11 @@ Database migrations contain scan evidence, reviewed indicators, feedback, and
 ownership protections. The local-only
 `202611140001_operational_metrics.sql` migration adds service-role-only daily
 provider health/latency and detection-feedback evaluation views. They do not
-provide an administrator UI, billing usage, provider budgets, or circuit
-breakers. Embedding and model-evaluation tables are not implemented.
+provide an administrator UI or provider dollar billing data. The local-only
+`202611170002_ai_provider_guardrails.sql` migration adds request-count budgets,
+a provider circuit breaker, and service-role-only health state. Neither it nor
+the atomic family invitation quota migration is independently verified as
+deployed. Embedding and model-evaluation tables are not implemented.
 DNS-over-HTTPS, provider diagnostics, updated model
 defaults, the Cohere endpoint, and the response-normalizing parser are deployed.
 The latest evidence-linked explanation and prevention-guidance improvements are

@@ -19,7 +19,10 @@ This is not a penetration test or a claim of production certification.
   lookups. DNS/TLS checks do not fetch the submitted page or follow redirects.
 - Optional AI and URL reputation calls are user-selected. AI routing requires
   explicit provider/model selection and limits a scan to one primary and at
-  most one fallback. Provider output is validated before use.
+  most one fallback. Provider output is validated before use. Local
+  uncommitted changes add fail-closed daily global, per-user, and per-provider
+  request limits, plus a provider circuit breaker; these require migration and
+  function deployment and do not limit dollar spend.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
 
@@ -27,16 +30,18 @@ This is not a penetration test or a claim of production certification.
 
 - **Invitation rate-limit race — FIX IMPLEMENTED, DEPLOYMENT REQUIRED:** a new
   migration adds a per-family transaction advisory lock around the quota check
-  and insert; the Edge Function now uses that RPC. The migration has not been
-  applied to production, and no live concurrent-request test was available.
+  and insert; the Edge Function now uses that RPC. The user reports deployment,
+  but it has not been independently verified and no live concurrent-request
+  test was available.
 - **MFA enrollment — PARTIALLY IMPLEMENTED:** AAL2 is required for users who
   have a verified factor, but enrollment is not mandatory for all accounts.
 - **Family isolation — NOT TESTED:** ownership and RLS were inspected, but
   separate-user integration tests against a local or staging database were
   unavailable.
-- **Provider spend and resilience — PARTIALLY IMPLEMENTED:** request timeouts,
-  failure classification, and aggregate status/latency records exist. There
-  is no provider-specific billing budget or circuit breaker.
+- **Provider spend and resilience — PARTIALLY IMPLEMENTED:** local uncommitted
+  changes add atomic request-count budgets and a three-failure/15-minute
+  circuit breaker. They are not deployed or live-tested. These counts do not
+  cap provider billing, so provider-side spending limits remain required.
 - **External data processing — REQUIRES USER CONSENT:** optional AI or URL
   reputation analysis can send minimized scan data or the submitted URL to
   selected third parties. Provider retention, plan availability, and pricing
@@ -48,9 +53,11 @@ This is not a penetration test or a claim of production certification.
   retention policy are not implemented.
 - **Android/OEM crash — NOT TESTED:** no redacted Huawei HarmonyOS crash log
   was supplied, so the launch failure's root cause is unknown.
-- **iOS distribution — REQUIRES MANUAL ACTION:** the current bundle identifier
-  is a placeholder; signing, provisioning, privacy disclosures, and a release
-  build need a macOS/Xcode environment.
+- **Platform identity — REQUIRES MANUAL ACTION:** iOS bundle ID
+  `com.example.cyvoraMobile` differs from Android
+  `com.example.cyvora_mobile`. Do not change either identity until the owner
+  confirms the intended App Store identity. Xcode build, signing, provisioning,
+  privacy declarations, and a release build need a macOS/Xcode environment.
 
 ## Safe handling and validation
 
