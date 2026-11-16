@@ -121,6 +121,21 @@ reputation by itself. For testing on devices, use a Google Play internal testing
 track when possible; keep Play Protect enabled and install only builds from a
 source you trust.
 
+## Android compatibility and security
+
+The Android build uses Flutter's minimum supported API level (API 24 / Android
+7.0 or newer with the pinned Flutter toolchain). The GitHub release APK is a
+universal APK containing the Flutter-supported ARM 32-bit, ARM 64-bit, and
+x86_64 native libraries. HarmonyOS compatibility can vary by device and release;
+a Huawei security warning is not an Android compatibility message and should
+not be bypassed.
+
+Android backup is disabled so local preferences and queued notification previews
+aren't copied into device backups; this also means local data won't be restored
+from an Android backup after reinstalling or moving devices. Cleartext HTTP is
+disabled to require encrypted network transport. Release publishing runs Flutter
+analysis and tests before producing signed APK/AAB files.
+
 ## Dashboard integrations
 
 The signed-in dashboard provides Home, History, Family, Alerts, and Profile
