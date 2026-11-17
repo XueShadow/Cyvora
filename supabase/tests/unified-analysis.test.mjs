@@ -1775,6 +1775,10 @@ test("AI request controls deduplicate, cool down users, and cap concurrency", as
     resolve(projectRoot, "supabase/migrations/202611170003_ai_request_dedup_cooldowns.sql"),
     "utf8",
   );
+  const forwardMigration = await readFile(
+    resolve(projectRoot, "supabase/migrations/202611170004_ai_request_dedup_quota_reservation.sql"),
+    "utf8",
+  );
   const edgeFunction = await readFile(
     resolve(projectRoot, "supabase/functions/scam-intelligence/index.ts"),
     "utf8",
@@ -1787,7 +1791,6 @@ test("AI request controls deduplicate, cool down users, and cap concurrency", as
   assert.doesNotMatch(edgeFunction, /admin\.rpc\(\s*"record_ai_provider_attempt"/);
   assert.match(migration, /create table if not exists public\.ai_request_deduplication/);
   assert.match(migration, /request_fingerprint text not null/);
-  assert.match(migration, /previous_fingerprint_at >[\s\S]*target_duplicate_window_seconds/);
   assert.match(migration, /target_user_cooldown_seconds/);
   assert.match(migration, /previous_request_at >[\s\S]*target_user_cooldown_seconds/);
   assert.match(migration, /target_max_concurrent_requests/);
@@ -1796,13 +1799,16 @@ test("AI request controls deduplicate, cool down users, and cap concurrency", as
   assert.match(migration, /delete from public\.ai_provider_attempt_leases[\s\S]*where expires_at <= request_time/);
   assert.match(migration, /reservation_id uuid primary key/);
   assert.match(migration, /user_id uuid not null references auth\.users\(id\) on delete cascade,[\s\S]*provider text not null/);
-  assert.match(migration, /select requested_at[\s\S]*for update/);
+  assert.match(migration, /insert into public\.ai_request_deduplication as existing/);
   assert.match(migration, /reserve_result := public\.reserve_ai_provider_attempt/);
-  const dedupCheckIndex = migration.indexOf("select requested_at");
-  const quotaReservationIndex = migration.indexOf(
+  assert.match(forwardMigration, /previous_fingerprint_at >[\s\S]*target_duplicate_window_seconds/);
+  assert.match(forwardMigration, /select requested_at[\s\S]*for update/);
+  assert.match(forwardMigration, /reserve_result := public\.reserve_ai_provider_attempt/);
+  const dedupCheckIndex = forwardMigration.indexOf("select requested_at");
+  const quotaReservationIndex = forwardMigration.indexOf(
     "reserve_result := public.reserve_ai_provider_attempt",
   );
-  const dedupInsertIndex = migration.indexOf(
+  const dedupInsertIndex = forwardMigration.indexOf(
     "insert into public.ai_request_deduplication (",
   );
   assert.ok(dedupCheckIndex < quotaReservationIndex);
@@ -1815,6 +1821,8 @@ test("AI request controls deduplicate, cool down users, and cap concurrency", as
   assert.match(migration, /revoke all on function public\.record_ai_provider_attempt_v2/i);
   assert.match(migration, /grant execute on function public\.reserve_ai_provider_attempt_v2[\s\S]*to service_role;/i);
   assert.match(migration, /grant execute on function public\.record_ai_provider_attempt_v2[\s\S]*to service_role;/i);
+  assert.match(forwardMigration, /revoke all on function public\.reserve_ai_provider_attempt_v2/i);
+  assert.match(forwardMigration, /grant execute on function public\.reserve_ai_provider_attempt_v2[\s\S]*to service_role;/i);
 });
 
 test("AI provider circuit breaker has half-open success and failure recovery paths", async () => {

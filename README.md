@@ -31,10 +31,10 @@ those controls take effect. See
 [`supabase/PROVIDER_STATUS.md`](supabase/PROVIDER_STATUS.md) before enabling an
 external provider or applying a migration. No live provider result or Supabase
 deployment is verified by local tests.
-The three guardrail migrations are present in the public repository (through
-commit `0313782`); that does not establish that they were applied to a local,
-staging, or production database. PostgreSQL execution and live provider tests
-remain unverified.
+The guardrail migrations 001–004 are present in the repository; this does not
+establish that they were applied to a local, staging, or production database.
+Migration 004 is a forward-only correction so migration 003 remains unchanged.
+PostgreSQL execution and live provider tests remain unverified.
 The current local backend suite passes 89 tests, and Flutter analysis plus 59
 widget tests pass. These local checks do not execute the migrations against
 PostgreSQL or prove deployed RPC/function behavior.

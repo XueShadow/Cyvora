@@ -36,11 +36,11 @@ provider dollar-spend budget. Server-side controls reserve daily request counts 
 per-user, and per-provider limits. All three limits must be configured as
 positive integers (maximum 100,000) or AI calls fail closed as
 unavailable/not configured. The cooldown/deduplication/concurrency controls in migration 003 are present
-in GitHub at commit `0313782`; deployment is unverified. The current local
-worktree has uncommitted fixes to record fingerprints only after quota
-reservation succeeds and to preserve scan reservation IDs for completion
-accounting. The backend mock suite passes 89 tests; this is not a PostgreSQL
-or live-provider test. Per-provider settings use
+in the repository; deployment is unverified. Migration 004 carries the
+dedupe-order correction while preserving migration 003's published contents.
+The scan reservation-ID fix is in the provider adapter. The backend mock
+suite passes 89 tests; this is not a PostgreSQL or live-provider test.
+Per-provider settings use
 `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
 `AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
 provider-side spending limits separately.
@@ -143,11 +143,11 @@ fetched.
 
 ## Database, deployment, and verification
 
-Migrations 001–003 and the v2 Edge Function RPC integration are present in
-GitHub at commit `0313782`. No evidence confirms they were applied to a local,
-staging, or production database. PostgreSQL execution, Edge Function runtime
-tests, and live provider tests are NOT TESTED. The current worktree's SQL
-dedupe-order and scan reservation-accounting fixes are uncommitted.
+Migrations 001–004 and the v2 Edge Function RPC integration are present in the
+repository. No evidence confirms they were applied to a local, staging, or
+production database. PostgreSQL execution, Edge Function runtime tests, and
+live provider tests are NOT TESTED. Migration 004 is a forward correction;
+migration history must be checked before applying it.
 
 Database migrations in the repository contain scan evidence, reviewed
 indicators, feedback, and ownership protections. The

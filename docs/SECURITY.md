@@ -25,9 +25,9 @@ This is not a penetration test or a claim of production certification.
   suppression, and provider concurrency leases. It stops fallback after
   circuit-open or HTTP 429 responses and skips optional AI when verified threat
   intelligence is sufficient. Migration deployment and PostgreSQL execution
-  are unverified. Local uncommitted fixes defer dedupe writes until quota
-  reservation succeeds and preserve scan reservation IDs for completion
-  accounting. Request counts do not limit dollar spend.
+  are unverified. Migration 004 defers dedupe writes until quota reservation
+  succeeds, and the provider adapter now preserves scan reservation IDs for
+  completion accounting. Request counts do not limit dollar spend.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
 
@@ -44,11 +44,10 @@ This is not a penetration test or a claim of production certification.
   separate-user integration tests against a local or staging database were
   unavailable.
 - **Provider spend and resilience — PARTIALLY IMPLEMENTED:** pushed migrations
-  002–003 and the Edge Function integration implement request-count budgets,
+  002–004 and the Edge Function integration implement request-count budgets,
   cooldown/deduplication/concurrency controls, and a circuit breaker. Database
-  deployment and SQL concurrency behavior are unverified; the local
-  dedupe-order and scan accounting fixes are uncommitted. Request counts do
-  not cap provider
+  deployment and SQL concurrency behavior are unverified; migration 004
+  carries the forward dedupe-order correction. Request counts do not cap provider
   billing, so provider-side spending limits remain required.
 - **External data processing — REQUIRES USER CONSENT:** optional AI or URL
   reputation analysis can send minimized scan data or the submitted URL to
@@ -75,12 +74,12 @@ This is not a penetration test or a claim of production certification.
 - Do not expose the Supabase service-role key to Flutter or ordinary users.
 - Do not deploy migrations, change production secrets/settings, or release a
   signed build without separate approval and a reviewed deployment plan.
-- Commit `0313782` pushed migrations 001–003 and their Edge Function
-  integration. This establishes presence in GitHub only: local database,
-  staging, and production application are unverified. The current local
-  dedupe-order adjustment and scan reservation-accounting fix are uncommitted.
-  The local Node suite passes 89 tests and Flutter tests pass 59; these do not
-  replace database, provider, or device testing.
+- The repository contains migrations 001–004 and their Edge Function
+  integration. This establishes Git presence only: local, staging, and
+  production application are unverified. Windows Application Control blocked
+  the Supabase CLI in this workspace. The local Node suite passes 89 tests and
+  Flutter tests pass 59; these do not replace database, provider, or device
+  testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the updated Edge Function, the deployed version
   retains the prior race condition.

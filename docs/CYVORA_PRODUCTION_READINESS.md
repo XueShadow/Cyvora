@@ -28,12 +28,11 @@ scaffold. Recent changes improve lockfile reproducibility, bound request
 parsing, clarify startup diagnostics, and add ordinary push/PR CI.
 
 Production readiness is **not established**. GitHub Actions run
-[43948228253](https://github.com/XueShadow/Cyvora/actions/runs/43948228253)
-passed for pushed commit `0313782`, which includes the three guardrail
-migrations and provider integration code. The current working tree contains
-uncommitted fixes to record duplicate fingerprints only after provider quota
-reservation succeeds and to persist scan-analysis reservation IDs for
-completion accounting. Public v1.0.1 Android release
+[43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544)
+passed for pushed commit `ec21d4b`. Migration 004 carries the dedupe-order
+correction forward while preserving migration 003's published contents. The
+scan-analysis reservation-ID fix is also pushed. No database migration or
+function deployment has been verified. Public v1.0.1 Android release
 artifacts were checksum- and signature-validated against the pinned production
 certificate, but this does not verify a future release. The iOS bundle ID
 differs in case/spelling from Android and remains unchanged pending approval.
@@ -47,16 +46,16 @@ verified; no live provider call was made.
 |---|---|---|
 | Flutter client and Supabase Auth | VERIFIED | `flutter analyze --fatal-infos` and `flutter test --no-pub` passed locally on the current working tree (59 tests). |
 | Dependency reproducibility | VERIFIED | `flutter/pubspec.lock` is tracked, `material_ui` is constrained, and `flutter pub get --enforce-lockfile` passed locally. |
-| Normal push/PR CI | VERIFIED | GitHub Actions run [43948228253](https://github.com/XueShadow/Cyvora/actions/runs/43948228253) passed Flutter dependency validation, analysis, tests, Android debug build, and backend tests for pushed commit `0313782`. |
+| Normal push/PR CI | VERIFIED | GitHub Actions run [43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544) passed Flutter dependency validation, analysis, tests, Android debug build, and backend tests for pushed commit `ec21d4b`. |
 | Android identity and configuration | VERIFIED | Public v1.0.1 APK/AAB validated as `com.example.cyvora_mobile`, version `1.0.1+1`, min API 24, target API 36, ARM64/ARM32/x86_64; certificate SHA-256 `d732eaa269a8707b2447c73aee5a14885d030d59b9dc7382302321c750ad3afa` matches the repository pin. No ID or signing identity was changed. |
 | Android startup and HarmonyOS | NOT TESTED | Fixed-phase startup logs exist. No Huawei crash log was supplied; the cause is unknown. The emulator was offline. |
 | Android release | PARTIALLY IMPLEMENTED | The public v1.0.1 artifacts passed checksum/signature validation. A new signed release build and device install/update test were not performed. |
 | iOS | PARTIALLY IMPLEMENTED | iOS bundle ID is `com.example.cyvoraMobile`, while Android is `com.example.cyvora_mobile`; this identity mismatch is not changed without approval. Xcode build/runtime, signing, provisioning, privacy declarations, and distribution remain unverified. |
-| Supabase auth, RLS, and Edge Functions | PARTIALLY IMPLEMENTED | Migrations 001–003 and the v2 provider RPC integration are present in GitHub at `0313782`. No evidence confirms application to local, staging, or production databases. PostgreSQL execution, Deno runtime, and live authorization behavior are NOT TESTED. |
+| Supabase auth, RLS, and Edge Functions | PARTIALLY IMPLEMENTED | Migrations 001–004 and the v2 provider RPC integration are present in GitHub. Migration 004 is the forward correction for dedupe reservation ordering. No evidence confirms application to local, staging, or production databases. PostgreSQL execution, Deno runtime, and live authorization behavior are NOT TESTED. |
 | Family Protection | PARTIALLY IMPLEMENTED | Invitation tokens are hashed, expire, require verified-email matching, and are consumed under a lock. A 16 KiB request-body cap is implemented. The user reports the atomic quota migration was deployed; deployment was not independently verified, and live concurrency/family isolation tests remain unavailable. |
 | Scam detection | PARTIALLY IMPLEMENTED | Deterministic message/URL rules, evidence modules, `UNKNOWN`/unavailable states, and moderation-gated indicators exist. A new 14-case synthetic fixture passed locally; it is not representative production accuracy. |
 | Adaptive intelligence | PARTIALLY IMPLEMENTED | Reviewed examples, staged versioned datasets, evaluation gates, activation, and rollback support are documented/implemented. Real-world labeled data and operational evaluation are still required. |
-| AI providers | PARTIALLY IMPLEMENTED | Pushed code uses v2 reservation/completion RPCs for scan analysis and assistant chat, with HMAC deduplication, cooldowns, provider leases, daily budgets, and a circuit breaker. The local backend suite (89 tests) covers mock fallback/timeout reservation accounting and static SQL contracts. PostgreSQL concurrency, lease cleanup, cooldown boundaries, RPC permissions, migration application, and live provider behavior are NOT TESTED. Local SQL and scan-reservation fixes are uncommitted. Request counts are not billing caps. |
+| AI providers | PARTIALLY IMPLEMENTED | Pushed code uses v2 reservation/completion RPCs for scan analysis and assistant chat, with HMAC deduplication, cooldowns, provider leases, daily budgets, and a circuit breaker. The 89-test backend suite covers mock fallback/timeout reservation accounting and static SQL contracts. PostgreSQL concurrency, lease cleanup, cooldown boundaries, RPC permissions, migration application, and live provider behavior are NOT TESTED. Request counts are not billing caps. |
 | URL reputation | PARTIALLY IMPLEMENTED | Adapter behavior and local/private destination filtering have mocked coverage. No live provider calls or pricing/retention checks were performed. |
 | Laravel | PARTIALLY IMPLEMENTED | Laravel currently serves a standalone scaffold/default page; no app integration contract was identified. Confirm whether it is intentionally required. |
 
@@ -87,9 +86,9 @@ verified; no live provider call was made.
   database.
 - AI request budgets/circuit breaker and v2 cooldown/deduplication/concurrency
   controls are present in pushed code, but deployment is unverified. PostgreSQL
-  behavior has not been executed. Local SQL admission-order and scan-attempt
-  completion fixes are uncommitted. These controls limit request counts, not
-  provider spend.
+  behavior has not been executed. Migration 004 contains the forward-only
+  dedupe admission fix; database application is unverified. These controls
+  limit request counts, not provider spend.
 - Android notification-listener content is kept in app-private preferences,
   but application-layer encryption and tested retention controls are absent.
 - Optional third-party providers may process scan text/URLs under their own
@@ -111,8 +110,8 @@ accuracy. Expand the reviewed corpus before setting release thresholds.
 ## CI and tests
 
 GitHub Actions run
-[43948228253](https://github.com/XueShadow/Cyvora/actions/runs/43948228253)
-passed both Flutter and backend jobs for pushed commit `0313782`, including
+[43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544)
+passed both Flutter and backend jobs for pushed commit `ec21d4b`, including
 dependency validation, analysis, widget tests, backend Node tests, and the
 Android debug build. Production release signing remains separate.
 
@@ -147,10 +146,12 @@ checksum validation passed previously; a new release build was not produced.
   `supabase/functions/_shared/ai-provider-analysis.ts`,
   `supabase/functions/scam-intelligence/index.ts`, and tests add daily request
   budgets, provider circuit-breaker logic, and v2 reservation accounting.
-  Migration `202611170003_ai_request_dedup_cooldowns.sql` is present in the
-  pushed repository. Local uncommitted fixes defer dedupe recording until
-  quota reservation succeeds and persist scan reservation IDs for completion
-  accounting. No migration or Edge Function deployment was performed.
+  Migration `202611170003_ai_request_dedup_cooldowns.sql` remains unchanged
+  from its published contents. New migration
+  `202611170004_ai_request_dedup_quota_reservation.sql` defers dedupe
+  recording until quota reservation succeeds. The scan reservation-ID fix is
+  in the shared provider adapter. No migration or Edge Function deployment
+  was performed.
 - `README.md`, `flutter/README.md`, and `supabase/README.md` — setup, CI,
   testing, staging-only deployment, and platform guidance.
 - `supabase/TRUSTED_INTELLIGENCE.md` — corrects the documented Node type
@@ -160,9 +161,9 @@ checksum validation passed previously; a new release build was not produced.
 
 ## Release blockers and next tasks
 
-1. Validate the local SQL and scan reservation fixes and all three migrations
-    in an isolated PostgreSQL/Supabase environment; add live reservation and
-    concurrency tests before committing the changes.
+1. Check migration history in an approved environment, then validate
+   migrations 001–004 against isolated PostgreSQL/Supabase staging and run
+   live reservation/concurrency tests.
 2. Deploy the approved migrations and Edge Function to isolated staging,
     configure request limits and provider-side spend caps, then execute
     concurrency, RLS, and family lifecycle tests.
