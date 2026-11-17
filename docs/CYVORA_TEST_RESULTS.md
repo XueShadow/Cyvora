@@ -10,14 +10,21 @@ verification.
 |---|---|---|
 | `flutter analyze --fatal-infos` | **PASS** | No issues found. |
 | `flutter test --no-pub` | **PASS — 66 tests** | Includes queue retry/duplicate suppression, durable completion-before-cleanup ordering, consent, retention, and deletion MethodChannel coverage. |
-| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | **PASS — 94 tests** | Mocked provider flows and static migration-contract assertions; not PostgreSQL integration. |
+| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | **PASS — 96 tests** | Mocked provider flows and static migration-contract assertions; not PostgreSQL integration. |
 | `python -m unittest discover -s flutter/scripts -p "test_*.py"` | **PASS — 15 tests** | Release-ref, tag/artifact version, and workflow policy tests. This is now the release workflow's test command. |
 | `flutter build apk --debug --no-pub` | **PASS** | Built `flutter/build/app/outputs/flutter-apk/app-debug.apk`; Gradle and Android SDK XML warnings were emitted. |
-| `supabase/tests/security_boundaries.test.sql` | **PREPARED (13 assertions), NOT RUN** | Supabase CLI/PostgreSQL test runtime unavailable. Covers RLS, family access, unauthorized RPC, expired/reused invite, deletion cascade, and AI quota checks. |
-| `supabase/tests/notification_scan_idempotency.test.sql` | **PREPARED (14 assertions), NOT RUN** | Supabase CLI/PostgreSQL test runtime unavailable. Requires the new migration and verifies reservation, duplicate blocking, replay, retry, deletion tombstones, and cleanup scheduling. |
+| `supabase/tests/security_boundaries.test.sql` | **PASS — 13 pgTAP assertions** | Run via `psql` against a disposable Supabase PostgreSQL 17.11.0.018 container after applying repository migrations. Covers RLS, family access, RPC permissions, invitation lifecycle, deletion cascade, and AI quota checks. |
+| `supabase/tests/notification_scan_idempotency.test.sql` | **PASS — 14 pgTAP assertions** | Same disposable database; covers reservation, duplicate blocking, replay, retry, deletion tombstones, and cleanup scheduling. |
 | `dart pub audit` | **UNAVAILABLE** | The installed Dart SDK has no `pub audit` subcommand. |
 | PHP/Composer audit and Laravel tests | **BLOCKED** | PHP and Composer are not installed/on `PATH`. |
 | Live provider, deployed database, device/OEM, and iOS validation | **NOT TESTED** | No credentials, production systems, or devices were used. |
+
+The SQL suites ran against a disposable Supabase PostgreSQL image using direct
+`psql`, not `supabase test db` or a fully started local Supabase stack. The
+base database image required test-only Auth and Storage schema helpers. All
+repository migrations through `202611170007` were applied; SQL fixtures rolled
+back. This does not verify a hosted staging/production project, Supabase CLI
+orchestration, or true multi-session concurrency.
 
 ## Original baseline
 

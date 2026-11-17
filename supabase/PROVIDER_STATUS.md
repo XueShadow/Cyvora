@@ -39,7 +39,7 @@ unavailable/not configured. The cooldown/deduplication/concurrency controls in m
 in the repository; deployment is unverified. Migration 004 carries the
 dedupe-order correction while preserving migration 003's published contents.
 The scan reservation-ID fix is in the provider adapter. The backend mock
-suite passes 94 tests; this is not a PostgreSQL or live-provider test.
+suite passes 96 tests; this is not a PostgreSQL or live-provider test.
 Per-provider settings use
 `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
 `AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
@@ -146,18 +146,21 @@ fetched.
 An earlier dashboard inspection, dated 2026-11-17, observed
 `202611150005_mfa_enforcement` as the latest recorded production migration.
 That observation is historical and was not rechecked during the current
-workspace review. Migrations `202611150006` and `202611170001`–`202611170005`
-are present in the repository; their current deployment status is UNVERIFIED.
-No SQL was executed and deployed Edge Function revisions were not checked.
-Validate pending migrations in timestamp order in isolated staging before any
-production deployment.
+workspace review. Migrations `202611150006` and `202611170001`–`202611170007`
+are present in the repository; their current
+deployment status is UNVERIFIED. Local PostgreSQL/pgTAP tests passed via
+direct `psql` against a disposable Supabase PostgreSQL container. This was
+not a hosted staging run, and deployed Edge Function revisions were not
+checked. Validate migrations in timestamp order in isolated staging before
+any production deployment.
 
-Migrations 001–005 and the corresponding Edge Function RPC integration are in
-the repository. PostgreSQL execution, Edge Function runtime tests, and live
-provider behavior are NOT TESTED. Migration 004 is a forward correction to
-deduplication ordering; migration 005 adds notification-scan idempotency and
-must be applied before deploying a client that sends notification idempotency
-keys.
+Migrations 001–007 and the corresponding Edge Function RPC integration are in
+the repository. Local PostgreSQL migration and pgTAP checks passed; Edge
+Function runtime tests and live provider behavior are NOT TESTED. Migration
+004 is a forward correction to deduplication ordering; migration 005 adds
+notification-scan idempotency, and migration 007 fixes initial lease
+reservation. Apply all pending migrations before deploying a client that
+sends notification idempotency keys.
 
 Database migrations in the repository contain scan evidence, reviewed
 indicators, feedback, and ownership protections. The

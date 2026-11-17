@@ -7,10 +7,14 @@ the centralized `scam-intelligence` and `family-invitations` functions.
 ## Local setup and secrets
 
 The Supabase CLI and Deno are not available in the current validation
-environment. No local Supabase stack was started, so Edge Function runtime,
-PostgreSQL, RLS, family concurrency, and notification idempotency behavior
-remain unverified. A Docker executable is present, but that alone does not
-establish that a usable local Supabase runtime is available.
+environment, and a full local Supabase stack was not started. Repository
+migrations and both pgTAP suites were executed via direct `psql` against a
+disposable Supabase PostgreSQL 17.11.0.018 container; 27 assertions passed.
+This verifies the tested migrations, RLS, and notification idempotency paths
+locally, but not CLI orchestration, Auth/Storage service integration, true
+multi-session concurrency, Edge Function runtime, hosted staging, or
+production. The base database image needed test-only Auth and Storage schema
+helpers. See the [test results](../docs/CYVORA_TEST_RESULTS.md).
 
 [`supabase/.env.example`](.env.example) lists optional provider variable names
 with empty values. It is a reference only: do not put real keys in this file,
@@ -44,12 +48,13 @@ node --experimental-strip-types --test $testFiles
 ```
 
 These are local unit tests using synthetic examples, mocked providers, and
-static migration-contract checks; they do not execute migrations, test live
-provider behavior, exercise RLS, or verify concurrent requests against
-PostgreSQL. The SQL suites under `supabase/tests/` are prepared for `supabase
-test db`, including a transactionally rolled-back notification idempotency
-fixture. Use only a disposable local or isolated staging project with separate
-test accounts. Never use production credentials for automated tests.
+static migration-contract checks; they do not test live provider behavior or
+verify concurrent requests against PostgreSQL. The SQL suites under
+`supabase/tests/` use pgTAP and roll back their fixtures. For the standard
+workflow, run them with `supabase test db` against a disposable local stack.
+The latest local PostgreSQL run used direct `psql` as described above. Use
+only a disposable local or isolated staging project with separate test
+accounts. Never use production credentials for automated tests.
 
 ## Database and function deployment
 

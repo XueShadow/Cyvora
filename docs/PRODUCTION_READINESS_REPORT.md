@@ -25,7 +25,7 @@ function revisions were not checked.
 | GitHub protected rules and release environments | REQUIRES MANUAL CONFIGURATION | Configure default-branch and `v*` tag rulesets, required reviewers for `android-signing` and `android-publish`, and signing secrets only in `android-signing`. Repository settings were not inspected or changed. Releases are created as drafts. |
 | Notification consent and local storage | IMPLEMENTED IN SOURCE; DEVICE TESTING REQUIRED | Consent defaults off; revocation confirms and clears queued previews. Previews use AES/GCM and Android Keystore; retention options are 1/7/30 days; expiry is scheduled; backups are disabled; encrypted completion markers prevent cleanup retries from re-analyzing. Key-loss and OEM lifecycle tests are not available here. |
 | Notification queue processing | VERIFIED IN FLUTTER TESTS | Failed analysis keeps the item; retry works; concurrent duplicates are suppressed; successful completion is persisted before queue cleanup. Five focused queue/platform-channel tests are included in the 64-test suite. Process-restart and native storage cases remain untested on-device. |
-| Supabase RLS, RPCs, migrations | PREPARED, NOT RUN | A transactional pgTAP suite covers RLS, family access, unauthorized RPC execution, invitation expiry/reuse, a deletion cascade, and AI quota reservations. It was not executed: Supabase CLI, PostgreSQL, and Docker were unavailable. True multi-session race tests are still required. |
+| Supabase RLS, RPCs, migrations | LOCAL pgTAP PASS; STAGING/PRODUCTION UNVERIFIED | The 13-assertion security suite and 14-assertion notification idempotency suite passed against a disposable Supabase PostgreSQL container after applying repository migrations. This used direct `psql`, not full CLI orchestration or hosted staging; true multi-session race tests remain required. |
 | Edge Function and provider behavior | MOCKED TESTS PASS; LIVE NOT TESTED | Existing tests cover authentication/error handling, bounds, timeouts, response validation, fallback controls, cooldowns, quota/circuit behavior. No provider credentials or live endpoints were used. |
 | AI spending | REQUIRES PROVIDER-SIDE LIMITS | Request-count quotas do not cap dollars. Prices vary by configured provider/model; no token costs or financial budget are fabricated. |
 | Scam detection | SYNTHETIC FIXTURE ONLY | Node tests report 7 TP, 0 FP, 7 TN, 0 FN on a 14-example fixture. This is not a real-world accuracy estimate. A reviewed and held-out multilingual/Filipino dataset is still required. |
@@ -37,11 +37,12 @@ function revisions were not checked.
 ## Validation summary
 
 - Flutter analyze: PASS.
-- Flutter tests: PASS, 64.
-- Supabase Node tests: PASS, 90.
+- Flutter tests: PASS, 66.
+- Supabase Node tests: PASS, 96.
 - Android release/ref/artifact/workflow policy tests: PASS, 15.
 - Android debug build: PASS.
-- PostgreSQL/pgTAP tests: prepared, not run.
+- PostgreSQL/pgTAP tests: 27 assertions passed locally; hosted staging and
+  true multi-session concurrency are not verified.
 - Live provider, Laravel, dependency advisory, Android device/OEM, and iOS
   checks: not run.
 

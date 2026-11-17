@@ -3,8 +3,10 @@
 > **Current status update:** This audit began from the earlier repository
 > baseline below. Notification queue encryption/retention and Android release
 > workflow hardening have since been implemented in source. The queue retains
-> failed items and supports retry; notification scans now use an idempotency
-> migration prepared on the current branch. That migration, PostgreSQL/RLS
+> failed items and supports retry; notification idempotency and security
+> boundary suites now pass locally (14 and 13 pgTAP assertions). The tests ran
+> via direct `psql` against a disposable Supabase PostgreSQL container, not a
+> hosted staging project. Production migration state, true multi-session
 > behavior, GitHub owner settings, live providers, and device behavior remain
 > unverified. For current results, use
 > [the complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md) and

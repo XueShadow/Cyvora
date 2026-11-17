@@ -12,14 +12,18 @@ No confirmed exploitable vulnerability was identified in the reviewed source.
 This is not a penetration test or a certification of deployed systems. The
 Android release trust boundary and notification queue reliability concerns
 identified in the earlier audit have source-level remediations on this branch.
-Notification scan idempotency depends on migration
-`202611170005_notification_scan_idempotency.sql`, which has not been executed
-against PostgreSQL.
+Notification idempotency migrations through
+`202611170007_notification_scan_reservation_initial_lease.sql` were executed
+against disposable local Supabase PostgreSQL during follow-up validation.
 
-Local Flutter analysis, 66 Flutter tests, 94 Supabase Node tests, 15 Android
-release policy tests, and an Android debug APK build passed. These checks do
-not verify SQL semantics, live Edge Function/provider behavior, GitHub owner
-settings, or Android device/OEM lifecycle behavior.
+Local Flutter analysis, 66 Flutter tests, 96 Supabase Node tests, 15 Android
+release policy tests, and an Android debug APK build passed. Follow-up local
+database validation applied repository migrations through `202611170007` to
+a disposable Supabase PostgreSQL 17.11.0.018 container; the 13 security
+boundary and 14 notification-idempotency pgTAP assertions passed. This used
+direct `psql` with test-only Auth/Storage helpers, not full Supabase CLI
+orchestration or hosted staging. Live Edge Function/provider behavior,
+GitHub owner settings, and Android device/OEM lifecycle remain unverified.
 
 ## Architecture map
 
@@ -58,9 +62,9 @@ analysis.
 | ID | Status | Severity | Confidence | Finding and disposition |
 |---|---|---:|---:|---|
 | F-01 | REMEDIATED IN SOURCE; OWNER SETTINGS UNVERIFIED | High potential impact | 8/10 | Release tags are checked against the default branch; signing and publishing use separate GitHub Environments; permissions are narrowed and releases remain drafts. Repository rules, Environment reviewers, restrictions, and secret placement still require owner verification. |
-| F-02 | REMEDIATED IN SOURCE; SQL NOT EXECUTED | Low reliability | 9/10 | A notification could be analyzed twice after a client interruption between successful analysis and local completion marking. The client now carries a stable revision key, and the Edge Function reserves/replays a user-scoped request through an atomic RPC. The new migration and runtime concurrency behavior are unverified. |
+| F-02 | LOCAL DATABASE TESTS PASS; STAGING/PRODUCTION UNVERIFIED | Low reliability | 9/10 | A notification could be analyzed twice after a client interruption between successful analysis and local completion marking. The stable revision key and reservation/replay RPC passed 14 pgTAP assertions locally. True multi-session and deployed behavior remain unverified. |
 | F-03 | OPEN PRIVACY LIMITATION | Medium privacy | 8/10 | Optional AI inputs are minimized server-side (email, Philippine mobile numbers, short numeric codes, and URL secrets), but this is heuristic and not on-device redaction. Other identifiers or secrets may remain. Keep optional third-party analysis opt-in and verify redaction with representative tests. |
-| F-04 | NOT VERIFIED | Medium assurance | 9/10 | RLS, cross-account/family isolation, and RPC grants were reviewed in source, but PostgreSQL/pgTAP suites were not run. |
+| F-04 | LOCAL DATABASE TESTS PASS; STAGING/PRODUCTION UNVERIFIED | Medium assurance | 9/10 | RLS, cross-account/family isolation, and RPC grants passed the 13-assertion pgTAP security-boundary suite against disposable local Supabase PostgreSQL. Hosted deployment state and true multi-session behavior remain unverified. |
 | F-05 | NOT VERIFIED | Medium operational | 9/10 | Provider authentication, model availability, billing, and live failure behavior were not tested. Request quotas do not cap provider spend. |
 | F-06 | NOT VERIFIED | Low assurance | 9/10 | Android Keystore encryption, retention expiry, permission revocation, key-loss recovery, process death, and OEM behavior have not been tested on devices. |
 | F-07 | OPEN QUALITY GAP | Medium confidence | 9/10 | Scam metrics use a 14-example synthetic fixture; they are not evidence of real-world precision, recall, F1, or false-positive rates. |
@@ -77,23 +81,24 @@ they are not represented as proven exploits.
   source. Their deployed revisions and live authorization behavior were not
   checked.
 - SQL migrations define RLS and restrict privileged RPC execution. The
-  prepared SQL suite covers scan access, family isolation, cross-account
-  writes, unauthorized RPCs, invitation expiry/reuse, deletion, and quota
-  behavior; it has not been run.
+  13-assertion security suite passed locally against disposable Supabase
+  PostgreSQL. Hosted migration state and true multi-session behavior remain
+  unverified.
 - Family invitation creation/acceptance uses server-side RPCs, hashed tokens,
   expiration, and verified-email checks in source. Concurrent invitation
   behavior requires a PostgreSQL test.
 
 ## Database, Edge Functions, and AI
 
-- Migrations `202611170001`–`202611170005` and the matching Edge Function
+- Migrations `202611170001`–`202611170007` and the matching Edge Function
   calls are repository code only. No migration ledger was rechecked during
   this work, and no deployment is claimed.
-- The new notification idempotency migration uses user/request keys,
+- The notification idempotency migrations use user/request keys,
   HMAC-based content fingerprints, a five-minute row-locked lease, a
   service-role-only reservation/record/release path, atomic scan persistence,
-  deleted-history tombstones, and a 35-day cleanup job. The migration fails
-  if `pg_cron` is unavailable so retention cannot be silently assumed.
+  deleted-history tombstones, and a 35-day cleanup job. The initial lease and
+  replay behavior passed 14 pgTAP assertions locally. The migration fails if
+  `pg_cron` is unavailable so retention cannot be silently assumed.
 - A provider call can still be repeated if a process crashes after the provider
   responds but before database completion and the lease expires. Provider-side
   idempotency was not established.
@@ -141,10 +146,10 @@ they are not represented as proven exploits.
 |---|---|
 | Flutter analyze | PASS |
 | Flutter tests | PASS — 66 |
-| Supabase Node tests | PASS — 94; mocked/source-contract tests, not PostgreSQL |
+| Supabase Node tests | PASS — 96; mocked/source-contract tests, not PostgreSQL |
 | Android release policy tests | PASS — 15 |
 | Android debug APK | PASS; no device install |
-| PostgreSQL migration/RLS/idempotency pgTAP | PREPARED — 13 security-boundary assertions and 14 idempotency assertions; NOT RUN |
+| PostgreSQL migration/RLS/idempotency pgTAP | PASS — 13 security-boundary and 14 idempotency assertions via direct psql on disposable Supabase PostgreSQL |
 | Deno, PHP/Composer, live providers, iOS/device tests | NOT RUN / UNAVAILABLE |
 | Dependency advisory scans | NOT RUN; relevant scanner/runtime tools unavailable |
 

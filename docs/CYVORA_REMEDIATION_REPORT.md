@@ -34,17 +34,23 @@ signing Environment. Source configuration does not create GitHub settings.
 - Added `202611170005_notification_scan_idempotency.sql` with user-scoped
   reservation keys, HMAC fingerprints, row-locked leases, atomic result
   persistence/replay, and deletion tombstones.
+- Corrected the initial reservation path so a new key returns its lease as
+  `reserved` instead of being mistaken for an in-progress duplicate; added
+  forward migration `202611170007_notification_scan_reservation_initial_lease.sql`.
+- Added forward migration `202611170006_family_invite_auth_compat.sql` so
+  verified invitation acceptance supports both `confirmed_at` and legacy
+  `email_confirmed_at` Supabase Auth schemas.
 - Requests in progress return a retryable conflict; changed content cannot
   reuse the same request key; completed responses are replayed without a
   second scan record.
 - Automated database cleanup retains idempotency records for up to 35 days.
   The migration fails if `pg_cron` is unavailable rather than silently
   omitting the schedule.
-- Added four Node source-contract tests and a 14-assertion pgTAP suite.
+- Added focused Node source-contract tests and a 14-assertion pgTAP suite.
 
-**Limit:** PostgreSQL tests have not run. If a provider call succeeds and the
-process fails before the transaction commits, retry after lease expiry can
-call the provider again.
+**Limit:** Local pgTAP suites pass, but true multi-session behavior has not
+been tested. If a provider call succeeds and the process fails before the
+transaction commits, retry after lease expiry can call the provider again.
 
 ### 3. Notification privacy
 
@@ -67,7 +73,11 @@ call the provider again.
   reservation, fingerprint mismatch, release/retry, atomic completion/replay,
   deleted-history behavior, RPC access, and cleanup scheduling.
 - Updated Supabase setup/provider documentation with local-vs-staging limits.
-- No migration was executed. Both SQL suites are **PREPARED, NOT RUN**.
+- Applied repository migrations through `202611170007` to a disposable
+  Supabase PostgreSQL 17.11.0.018 container. Both SQL suites passed via direct
+  `psql`: 13 security-boundary and 14 idempotency assertions. The bare image
+  required test-only Auth and Storage schema helpers; this was not a full
+  Supabase CLI stack or hosted staging run.
 
 ### 5. AI provider validation
 
@@ -109,10 +119,10 @@ Updated:
 |---|---|
 | `flutter analyze --fatal-infos` | PASS |
 | `flutter test --no-pub` | PASS — 66 tests |
-| Node test suite | PASS — 94 tests |
+| Node test suite | PASS — 96 tests |
 | Android release policy tests | PASS — 15 tests |
 | `flutter build apk --debug --no-pub` | PASS |
-| SQL migration/pgTAP execution | NOT RUN |
+| SQL migration/pgTAP execution | PASS — 27 assertions on disposable local PostgreSQL |
 | Live providers, production deployment, device/iOS tests | NOT RUN |
 
 See [test results](CYVORA_TEST_RESULTS.md) for detailed limitations. The work

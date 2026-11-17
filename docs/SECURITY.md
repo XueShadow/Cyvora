@@ -87,11 +87,13 @@ executed, and deployed Edge Function revisions remain unverified.
   account identifiers, credentials, or other sensitive values. Keep optional
   provider sharing disabled unless the user chooses it, and do not treat this
   as complete de-identification.
-- **Notification replay protection — IMPLEMENTED IN SOURCE; DATABASE
-  UNVERIFIED:** migration `202611170005_notification_scan_idempotency.sql`
-  adds user-scoped request keys, content fingerprints, atomic scan recording
-  and replay, deletion tombstones, and a required `pg_cron` cleanup job.
-  Migration execution and concurrent behavior have not been verified.
+- **Notification replay protection — VERIFIED LOCALLY; STAGING/PRODUCTION
+  UNVERIFIED:** migrations `202611170005` and `202611170007` add
+  user-scoped request keys, content fingerprints, atomic scan recording and
+  replay, deletion tombstones, and a required `pg_cron` cleanup job. The
+  initial-lease and replay paths passed 14 pgTAP assertions in a disposable
+  Supabase PostgreSQL container. True multi-session behavior and deployed
+  migration state remain unverified.
 - **Android/OEM crash — NOT TESTED:** no redacted Huawei HarmonyOS crash log
   was supplied, so the launch failure's root cause is unknown.
 - **Platform identity — REQUIRES MANUAL ACTION:** iOS bundle ID
@@ -109,30 +111,30 @@ executed, and deployed Edge Function revisions remain unverified.
 - Do not deploy migrations, change production secrets/settings, or release a
   signed build without separate approval and a reviewed deployment plan.
 - The repository contains migrations through
-  `202611170005_notification_scan_idempotency.sql` and matching Edge Function
-  integration. The last production ledger observation (`2026-11-17`) is
-  historical, not a current deployment check. The local Node suite passes 94
-  tests and Flutter tests pass 66; these do not replace database, provider,
-  or device testing.
+  `202611170007_notification_scan_reservation_initial_lease.sql` and matching
+  Edge Function integration. The last production ledger observation
+  (`2026-11-17`) is historical, not a current deployment check. The local
+  Node suite passes 96 tests and Flutter tests pass 66; these do not replace
+  database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the matching Edge Function, the quota protection
   is not verified in production.
 - Run backend unit tests and Flutter tests without production credentials.
   Validate RLS and family account isolation against an isolated database with
   multiple test accounts.
-- `supabase/tests/security_boundaries.test.sql` prepares pgTAP checks for
-  scan RLS, family isolation, foreign-account writes, unauthorized RPC
-  execution, expired and reused invitations, user-deletion cascades, and AI
-  quota reservation/exhaustion. Run it only with the local Supabase test
-  database (`supabase test db`); it was not executed here because Supabase CLI,
-  PostgreSQL, and Docker were unavailable.
-  Existing Node tests statically check migration contracts but cannot prove
-  database concurrency or deployed policy behavior.
-- `supabase/tests/notification_scan_idempotency.test.sql` prepares 14 pgTAP
-  assertions for notification request reservation, duplicate blocking,
-  fingerprint conflicts, retry, atomic recording/replay, and deleted-history
-  tombstones. It was not executed. The migration fails if `pg_cron` is
-  unavailable so the 35-day cleanup schedule is not silently omitted.
+- `supabase/tests/security_boundaries.test.sql` passed 13 pgTAP assertions
+  for scan RLS, family isolation, foreign-account writes, unauthorized RPC
+  execution, invitation expiry/reuse, user-deletion cascades, and AI quota
+  behavior.
+- `supabase/tests/notification_scan_idempotency.test.sql` passed 14 pgTAP
+  assertions for reservation, duplicate blocking, fingerprint conflicts,
+  retry, atomic recording/replay, and deleted-history tombstones. Both suites
+  ran via `psql` against a disposable Supabase PostgreSQL 17.11.0.018 image
+  after repository migrations were applied; the base image needed test-only
+  Auth and Storage helpers. This was not a full `supabase test db` or hosted
+  staging run. True multi-session concurrency and deployed migration state
+  remain unverified. The migration fails if `pg_cron` is unavailable so the
+  35-day cleanup schedule is not silently omitted.
 - Android release Environments named `android-signing` and `android-publish`
   must be created with required reviewers. Move signing secrets into
   `android-signing`, restrict stable `v*` tag creation/updates, and require

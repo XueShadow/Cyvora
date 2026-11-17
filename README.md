@@ -38,9 +38,11 @@ local tests do not prove which schema or Edge Function revisions are
 deployed; validate them in an isolated staging project before production.
 
 The latest recorded local checks are in
-[`docs/TESTING_AND_VALIDATION.md`](docs/TESTING_AND_VALIDATION.md). They do not
-execute migrations against PostgreSQL, verify live provider behavior, or
-establish current GitHub settings.
+[`docs/TESTING_AND_VALIDATION.md`](docs/TESTING_AND_VALIDATION.md). The latest
+validation includes direct PostgreSQL migration and pgTAP checks on a
+disposable Supabase database image; it does not verify live provider behavior,
+hosted staging/production state, true multi-session concurrency, or current
+GitHub settings.
 The push/PR checks are defined in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
 [production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),

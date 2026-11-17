@@ -218,7 +218,7 @@ remediation has since been applied in the current, uncommitted workspace:
 | Android release trust boundary | Release-ref validation checks stable tags and ancestry on the default branch. Validation, signing, and publishing are separate least-privilege jobs; signing/publishing use protected GitHub Environments; publishing creates a draft. Fifteen release-ref, artifact-version, and workflow policy tests pass. GitHub branch/tag rules, reviewers, and secret placement still require owner configuration and were not inspected. |
 | Notification queue reliability | Items remain queued until analysis succeeds; failures remain retryable; concurrent duplicate scans are suppressed; successful scans are durably marked in the encrypted queue before cleanup. Queue tests pass. |
 | Notification privacy | Notification previews are encrypted with an Android Keystore AES/GCM key, old plaintext queue entries are migrated durably on read, retention is configurable to 1/7/30 days (default 7), expiration is scheduled, consent defaults to off, and users can delete queued previews. Consent revocation clears previews after confirmation. Successful scans are durably marked complete before queue removal. `allowBackup` is false in the Android manifest. Device/OEM and reboot/force-stop behavior remain unverified. |
-| Supabase staging tests | Added `supabase/tests/security_boundaries.test.sql` for local pgTAP checks of scan RLS, family isolation, unauthorized RPC access, expired/reused invites, user-deletion cascade, and quota reservation/exhaustion. The SQL test was not run because Supabase CLI, PostgreSQL, and Docker were unavailable. Existing Node migration-contract tests cover invitation locking and AI controls, but do not prove database runtime behavior or actual concurrent requests. |
+| Supabase database tests | The 13-assertion security suite and 14-assertion notification suite passed via direct `psql` against disposable Supabase PostgreSQL after repository migrations were applied. This was not a hosted staging run; actual concurrent requests and deployed policy state remain unverified. |
 | AI provider controls | Existing mocked provider tests and migration-contract tests passed as part of the 90-test Node suite. No credentials were read and no live provider calls or billing checks were made. Request quotas do not cap provider spend; failed provider attempts release concurrency leases but remain counted as attempted requests. |
 | Dependencies/platforms | Android debug build and Flutter analysis/tests passed. No dependency advisory scan completed: `dart pub audit` is unavailable in this Dart SDK; `npm` has no lockfile here; PHP/Composer are unavailable. No device/OEM, Laravel, Deno, or iOS runtime validation was performed. |
 
@@ -227,11 +227,11 @@ remediation has since been applied in the current, uncommitted workspace:
 | Check | Result |
 |---|---|
 | Flutter analysis | PASS — no issues |
-| Flutter tests | PASS — 64 tests |
-| Supabase Node tests | PASS — 90 tests |
+| Flutter tests | PASS — 66 tests |
+| Supabase Node tests | PASS — 96 tests |
 | Android release-ref, artifact-version, and workflow policy tests | PASS — 15 tests |
 | Android debug build | PASS — APK built |
-| PostgreSQL/pgTAP staging tests | NOT RUN — local database tooling unavailable |
+| PostgreSQL/pgTAP local tests | PASS — 27 assertions; hosted staging and multi-session concurrency remain unverified |
 | Dependency advisory scans | NOT RUN — required audit tooling/lockfiles unavailable |
 | Live providers, production, devices, Laravel, iOS | NOT TESTED |
 
@@ -261,7 +261,7 @@ remediation has since been applied in the current, uncommitted workspace:
 
 **Production readiness remains NOT VERIFIED.** The current local changes pass
 the Flutter, Node, Python release-policy, and Android debug-build checks
-listed above. The SQL suite is prepared but not executed. These results do
+listed above. The SQL suites pass locally, but these results do
 not establish deployed migration/function alignment, runtime RLS or RPC
 isolation, real concurrent quota behavior, GitHub owner settings, provider
 spend/retention, Android OEM lifecycle behavior, or Laravel/iOS readiness.

@@ -40,9 +40,9 @@ These settings were not changed or verified in GitHub during this work.
 
 - [ ] Verify the actual target project's migration ledger and function
       revisions; repository state is not deployment evidence.
-- [ ] Apply reviewed migrations in staging, including
-      `202611170005_notification_scan_idempotency.sql`, and verify the
-      required `pg_cron` cleanup job.
+- [ ] Apply reviewed migrations `202611170001`–`202611170007` in order in
+      staging, including notification idempotency and the initial-lease fix,
+      and verify the required `pg_cron` cleanup job.
 - [ ] Run RLS, cross-account, family isolation, unauthorized RPC, invitation
       concurrency, quota, replay, deletion, and expiry tests.
 - [ ] Confirm backup/restore and retention behavior in staging.

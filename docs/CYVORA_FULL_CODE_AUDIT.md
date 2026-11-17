@@ -3,9 +3,11 @@
 > **Current status update:** This report is the pre-remediation audit snapshot.
 > Release workflow hardening, encrypted/retained notification storage, queue
 > retry, and notification scan idempotency source changes have since been
-> prepared on `security/complete-production-hardening`. The new idempotency
-> migration has not been run. Existing findings and counts below describe
-> their original baseline. See the
+> added on `security/complete-production-hardening`. Repository migrations
+> through `202611170007` and both pgTAP suites have since passed locally on a
+> disposable Supabase PostgreSQL container; hosted staging and production
+> were not tested. Existing findings and counts below describe their original
+> baseline. See the
 > [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
 > [remediation report](CYVORA_REMEDIATION_REPORT.md), and
 > [final checklist](CYVORA_FINAL_PRODUCTION_CHECKLIST.md).

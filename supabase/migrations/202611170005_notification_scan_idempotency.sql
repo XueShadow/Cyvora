@@ -81,7 +81,15 @@ begin
   values (
     target_user_id, target_request_id, target_request_fingerprint
   )
-  on conflict (user_id, request_id) do nothing;
+  on conflict (user_id, request_id) do nothing
+  returning * into existing;
+
+  if found then
+    return jsonb_build_object(
+      'status', 'reserved',
+      'lease_token', existing.lease_token
+    );
+  end if;
 
   select * into existing
   from public.notification_scan_idempotency

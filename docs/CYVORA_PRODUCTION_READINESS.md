@@ -4,10 +4,10 @@
 > snapshots below are historical and were not rechecked against production.
 > Current local results on `security/complete-production-hardening` are
 > Flutter analyze PASS, Flutter tests PASS (66), Supabase Node tests PASS
-> (94), Android release policy tests PASS (15), and Android debug APK PASS.
-> Migration `202611170005_notification_scan_idempotency.sql` and its 14
-> pgTAP assertions are prepared but NOT RUN; the existing 13-assertion
-> security-boundary suite is also NOT RUN. No production changes were made.
+> (96), Android release policy tests PASS (15), and Android debug APK PASS.
+> Local pgTAP suites PASS (13 security-boundary and 14 idempotency assertions)
+> against a disposable Supabase PostgreSQL container. No production changes
+> were made.
 > The current verdict is **CONDITIONALLY READY FOR ISOLATED STAGING
 > VALIDATION; NOT READY FOR PRODUCTION**. See the
 > [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
@@ -58,12 +58,14 @@ The local workspace now includes the approved Android release-workflow
 hardening, notification queue retry behavior, and encrypted notification
 storage with explicit consent, configurable 1/7/30-day retention, expiry, and
 user deletion. A completed scan is durably marked before queue cleanup, and
-consent revocation clears queued previews. A local pgTAP suite was prepared
-for RLS, family isolation, unauthorized RPC, invite reuse/expiry, user-delete
-cascades, AI quota behavior, and notification scan idempotency, but neither
-suite was run. Supabase CLI and PostgreSQL are unavailable, and the Docker
-engine is not available for a local Supabase stack. No production database,
-GitHub settings, credentials, or live providers were changed or accessed.
+consent revocation clears queued previews. A local pgTAP suite covers RLS, family isolation, unauthorized RPC, invite
+reuse/expiry, user-delete cascades, AI quota behavior, and notification scan
+idempotency. Both suites passed against a disposable Supabase PostgreSQL
+17.11.0.018 container after applying repository migrations through
+`202611170007`. The base image needed test-only Auth and Storage schema
+helpers; this was a direct `psql` run, not full Supabase CLI orchestration or
+staging validation. No production database, GitHub settings, credentials, or
+live providers were changed or accessed.
 
 Latest local results: Flutter analysis passed; Flutter tests passed (66);
 Supabase Node tests passed (94); Android release policy tests passed (15);
@@ -77,12 +79,12 @@ not configured. See [test results](CYVORA_TEST_RESULTS.md).
 |---|---|---|
 | Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Current workspace analysis and 66 tests pass (the earlier 59-test baseline remains historical). |
 | Backend boundary | IMPLEMENTED | `DashboardRepository` delegates Supabase reads and Edge Function requests; deterministic analysis is server-side. |
-| Supabase production schema | DEPLOYMENT UNVERIFIED | The last ledger observation is historical. Migrations through `202611170005_notification_scan_idempotency.sql` are in the repository; current deployed versions were not checked. |
+| Supabase production schema | DEPLOYMENT UNVERIFIED | The last ledger observation is historical. Migrations through `202611170007_notification_scan_reservation_initial_lease.sql` are in the repository and passed local PostgreSQL tests; current deployed versions were not checked. |
 | Edge Function deployment | NOT TESTED | Current deployed revisions were not independently inspected. Source presence does not prove deployment. |
 | Family Protection | PARTIALLY IMPLEMENTED; NOT TESTED live | Invite/revoke/accept and membership UI/code exist. Cross-family RLS, concurrent invitation quotas, and lifecycle need isolated database tests. Migration `202611170001` is not recorded in production. |
 | AI guardrails | IMPLEMENTED in repository; NOT TESTED against PostgreSQL/live providers | Daily request limits, deduplication/cooldowns, leases, and circuit breaker are in source/migrations. Production migrations `202611170002`–`004` are absent from the observed ledger. Limits count requests, not provider spend. |
 | Scam detection | PARTIALLY IMPLEMENTED; VERIFIED on a small fixture | Deterministic modules, evidence and risk schema, and optional AI/reputation integrations exist. The 14 synthetic examples are regression checks, not a real-world accuracy estimate. |
-| Android notification monitoring | PARTIALLY IMPLEMENTED; DEVICE TESTING REQUIRED | Previews are opt-in, Keystore-encrypted, expire after configurable retention, and can be deleted. Manual review retains failed items for retry; server idempotency is prepared but awaits migration validation. Device/OEM, permission-revocation, force-stop, and reboot behavior are unverified. |
+| Android notification monitoring | PARTIALLY IMPLEMENTED; DEVICE TESTING REQUIRED | Previews are opt-in, Keystore-encrypted, expire after configurable retention, and can be deleted. Manual review retains failed items for retry; server idempotency migrations and pgTAP behavior pass locally. Device/OEM, permission-revocation, force-stop, and reboot behavior are unverified. |
 | Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally after the notification changes. |
 | Android release/signing | SOURCE HARDENED; OWNER CONFIGURATION REQUIRED | Stable-tag/default-branch checks, least-privilege jobs, gated signing/publishing environments, and draft publishing are implemented. GitHub protected rules, reviewers, secret placement, and signed release behavior were not verified. |
 | iOS | BLOCKED for build/runtime verification | Bundle ID is `com.example.cyvoraMobile`, different from Android `com.example.cyvora_mobile`; no ID was changed. Xcode, signing, provisioning, privacy declarations, and device test were unavailable on Windows. |
@@ -116,16 +118,16 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
 | Supabase Node tests | PASS — 94 |
 | Release-ref, artifact-version, and workflow policy tests | PASS — 15 |
 | Android debug build | PASS — APK built |
-| `supabase/tests/security_boundaries.test.sql` | PREPARED (13 assertions), NOT RUN — local database tooling unavailable |
-| `supabase/tests/notification_scan_idempotency.test.sql` | PREPARED (14 assertions), NOT RUN — local database tooling unavailable |
+| `supabase/tests/security_boundaries.test.sql` | PASS — 13 pgTAP assertions on disposable local Supabase PostgreSQL |
+| `supabase/tests/notification_scan_idempotency.test.sql` | PASS — 14 pgTAP assertions on disposable local Supabase PostgreSQL |
 | Dependency advisory scans | NOT RUN — Dart audit command unavailable; PHP/Composer unavailable; no Laravel npm lockfile |
 
 ## Prioritized release blockers
 
 1. **Database/schema alignment:** validate pending migrations in isolated
-   staging, in timestamp order (`202611150006`, then `202611170001`–`004`).
-   Run RPC, RLS, family isolation, concurrency, lease-expiry, cooldown, and
-   circuit-breaker tests before any production change.
+   staging, in timestamp order (`202611150006`, then `202611170001`–`007`).
+   Local pgTAP suites pass, but run RPC, RLS, family isolation, and true
+   multi-session concurrency tests before any production change.
 2. **Confirm deployed Edge Functions:** verify the actual revisions and
    ensure they match the database schema before enabling optional AI or
    relying on family invitation creation.

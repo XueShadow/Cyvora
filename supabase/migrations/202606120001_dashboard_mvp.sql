@@ -307,7 +307,12 @@ begin
     raise exception 'Invitation is invalid or expired';
   end if;
 
-  select u.email, u.email_confirmed_at
+  select
+    u.email,
+    coalesce(
+      nullif(to_jsonb(u) ->> 'email_confirmed_at', '')::timestamptz,
+      nullif(to_jsonb(u) ->> 'confirmed_at', '')::timestamptz
+    )
     into account_email, email_confirmed_at
     from auth.users u
    where u.id = joining_user_id;

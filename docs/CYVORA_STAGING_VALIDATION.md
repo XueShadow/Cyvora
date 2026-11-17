@@ -8,8 +8,11 @@ point these tests at production. Do not copy production data into staging
 without an approved, minimized, and scrubbed dataset. No staging project was
 created or changed during this task.
 
-The Supabase CLI, PostgreSQL client, and Deno were unavailable in the current
-environment. SQL tests below are prepared but **NOT RUN**.
+The security-boundary and notification-idempotency pgTAP suites have passed
+against a disposable Supabase PostgreSQL 17.11.0.018 container using direct
+`psql`. This was not a full Supabase CLI stack or hosted staging project.
+The base image required test-only Auth and Storage schema helpers. No staging
+or production resources were created or changed.
 
 ## Before running tests
 
@@ -22,7 +25,7 @@ environment. SQL tests below are prepared but **NOT RUN**.
    production project.
 4. Apply migrations using the repository's normal migration process in
    timestamp order. In particular, verify the existing pending sequence
-   before `202611170005_notification_scan_idempotency.sql`.
+   through `202611170007_notification_scan_reservation_initial_lease.sql`.
 5. Confirm `pg_cron` is available. The new migration intentionally fails if
    automatic cleanup cannot be scheduled.
 6. Configure only minimal staging test secrets. Keep provider calls disabled
@@ -30,7 +33,8 @@ environment. SQL tests below are prepared but **NOT RUN**.
 
 ## Database and authorization tests
 
-Run the prepared SQL suites against a disposable local database:
+The local SQL suites have run against a disposable database. For standard
+Supabase CLI orchestration, run:
 
 ```powershell
 supabase start
@@ -52,8 +56,9 @@ covering:
 - exactly one scan record for a request key; and
 - deleted-history tombstones preventing a duplicate result.
 
-The SQL tests are not currently in the default Node suite and must be run via
-pgTAP. The idempotency suite is transaction-wrapped and rolls back fixtures.
+The SQL tests are not in the default Node suite; they use pgTAP. Both are
+transaction-wrapped and roll back fixtures. The existing run passed all 27
+assertions. It does not replace full-stack staging validation.
 
 ### Separate-connection concurrency tests
 

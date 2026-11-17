@@ -5,7 +5,7 @@ begin;
 select plan(13);
 
 insert into auth.users (
-  id, aud, role, email, encrypted_password, email_confirmed_at
+  id, aud, role, email, encrypted_password, confirmed_at
 )
 values
   (
