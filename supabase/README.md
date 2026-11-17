@@ -6,9 +6,11 @@ the centralized `scam-intelligence` and `family-invitations` functions.
 
 ## Local setup and secrets
 
-Install the Supabase CLI and Deno before running local Edge Function or database
-tests. Neither tool was available in the audit environment, so live function,
-RLS, and family integration behavior remains unverified.
+The Supabase CLI and Deno are not available in the current validation
+environment. No local Supabase stack was started, so Edge Function runtime,
+PostgreSQL, RLS, family concurrency, and notification idempotency behavior
+remain unverified. A Docker executable is present, but that alone does not
+establish that a usable local Supabase runtime is available.
 
 [`supabase/.env.example`](.env.example) lists optional provider variable names
 with empty values. It is a reference only: do not put real keys in this file,
@@ -44,9 +46,10 @@ node --experimental-strip-types --test $testFiles
 These are local unit tests using synthetic examples, mocked providers, and
 static migration-contract checks; they do not execute migrations, test live
 provider behavior, exercise RLS, or verify concurrent requests against
-PostgreSQL. Use an isolated local or staging Supabase project with separate
-test accounts for authorization and family-isolation tests. Never use
-production credentials for automated tests.
+PostgreSQL. The SQL suites under `supabase/tests/` are prepared for `supabase
+test db`, including a transactionally rolled-back notification idempotency
+fixture. Use only a disposable local or isolated staging project with separate
+test accounts. Never use production credentials for automated tests.
 
 ## Database and function deployment
 
@@ -60,3 +63,6 @@ deployment was performed in this audit.
 See [the production readiness report](../docs/CYVORA_PRODUCTION_READINESS.md)
 and [security notes](../docs/SECURITY.md) for outstanding verification and
 operational risks.
+The current security re-audit and staging procedures are documented in
+[`docs/CYVORA_COMPLETE_SECURITY_AUDIT.md`](../docs/CYVORA_COMPLETE_SECURITY_AUDIT.md)
+and [`docs/CYVORA_STAGING_VALIDATION.md`](../docs/CYVORA_STAGING_VALIDATION.md).

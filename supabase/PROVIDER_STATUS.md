@@ -39,7 +39,7 @@ unavailable/not configured. The cooldown/deduplication/concurrency controls in m
 in the repository; deployment is unverified. Migration 004 carries the
 dedupe-order correction while preserving migration 003's published contents.
 The scan reservation-ID fix is in the provider adapter. The backend mock
-suite passes 89 tests; this is not a PostgreSQL or live-provider test.
+suite passes 94 tests; this is not a PostgreSQL or live-provider test.
 Per-provider settings use
 `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, for example
 `AI_GEMINI_DAILY_REQUEST_LIMIT`. Request counts are not currency caps; configure
@@ -143,19 +143,21 @@ fetched.
 
 ## Database, deployment, and verification
 
-The Supabase Dashboard migration ledger for the configured production project
-was inspected on 2026-11-17. Its latest recorded version was
-`202611150005_mfa_enforcement`. The repository's `202611150006_scan_history_retention.sql`
-and migrations `202611170001`–`202611170004` were not present in that ledger.
-No SQL was executed during this audit, and the deployed Edge Function revisions
-were not verified. Apply and test the pending migrations in timestamp order in
-an isolated staging project before considering production deployment.
+An earlier dashboard inspection, dated 2026-11-17, observed
+`202611150005_mfa_enforcement` as the latest recorded production migration.
+That observation is historical and was not rechecked during the current
+workspace review. Migrations `202611150006` and `202611170001`–`202611170005`
+are present in the repository; their current deployment status is UNVERIFIED.
+No SQL was executed and deployed Edge Function revisions were not checked.
+Validate pending migrations in timestamp order in isolated staging before any
+production deployment.
 
-Migrations 001–004 and the v2 Edge Function RPC integration are present in the
-repository. Production ledger inspection confirms that 001–004 are not
-recorded as applied. PostgreSQL execution, Edge Function runtime tests, and
-live provider tests are NOT TESTED. Migration 004 is a forward correction and
-depends on the preceding guardrail migrations.
+Migrations 001–005 and the corresponding Edge Function RPC integration are in
+the repository. PostgreSQL execution, Edge Function runtime tests, and live
+provider behavior are NOT TESTED. Migration 004 is a forward correction to
+deduplication ordering; migration 005 adds notification-scan idempotency and
+must be applied before deploying a client that sends notification idempotency
+keys.
 
 Database migrations in the repository contain scan evidence, reviewed
 indicators, feedback, and ownership protections. The
@@ -177,8 +179,8 @@ free-tier eligibility, licensing compliance, or provider availability.
 The local Node suite covers request construction, response validation, fallback
 and primary-only routing, URL privacy-target filtering, risk handling,
 reservation completion IDs, provider failure states, and static migration
-contracts. The current local full-suite result is 89 passed; PostgreSQL
-execution and provider behavior remain NOT TESTED. Flutter analysis and 59
+contracts. The current local full-suite result is 94 passed; PostgreSQL
+execution and provider behavior remain NOT TESTED. Flutter analysis and 66
 widget tests also passed locally. A live provider test requires user-managed credentials in
 Supabase Edge Function Secrets and an approved staging environment; never paste
 credentials into chat or commit them.
