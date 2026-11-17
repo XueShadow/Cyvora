@@ -62,6 +62,13 @@ class MessageNotificationService {
     );
   }
 
+  Future<void> markCompleted(String id) {
+    return _channel.invokeMethod<void>(
+      'markPendingMessageNotificationCompleted',
+      <String, Object?>{'id': id},
+    );
+  }
+
   Future<void> clearPending() {
     return _channel.invokeMethod<void>('clearPendingMessageNotifications');
   }
@@ -108,9 +115,13 @@ enum NotificationScanOutcome { completed, failed, alreadyProcessing, noContent }
 class PendingMessageNotificationQueue {
   static const _maxRememberedCompletedIds = 50;
 
-  PendingMessageNotificationQueue({required this.remove});
+  PendingMessageNotificationQueue({
+    required this.remove,
+    required this.markCompleted,
+  });
 
   final Future<void> Function(String id) remove;
+  final Future<void> Function(String id) markCompleted;
   final Set<String> _processingIds = {};
   final Set<String> _completedIds = {};
 
@@ -130,6 +141,7 @@ class PendingMessageNotificationQueue {
 
     try {
       if (_completedIds.contains(notification.id)) {
+        await markCompleted(notification.id);
         await remove(notification.id);
         return NotificationScanOutcome.completed;
       }
@@ -137,6 +149,7 @@ class PendingMessageNotificationQueue {
       if (!await analyze(content)) return NotificationScanOutcome.failed;
 
       _rememberCompleted(notification.id);
+      await markCompleted(notification.id);
       await remove(notification.id);
       return NotificationScanOutcome.completed;
     } finally {

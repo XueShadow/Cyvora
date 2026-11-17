@@ -189,6 +189,11 @@ def read_pubspec_version(pubspec: Path) -> tuple[str, int]:
     return version.group(1), int(version.group(2))
 
 
+def validate_release_tag_version(tag: str | None, version_name: str) -> None:
+    if tag and tag != f"v{version_name}":
+        fail(f"Release tag {tag!r} must match pubspec version v{version_name}.")
+
+
 def validate(args: argparse.Namespace) -> None:
     sdk_root = args.sdk
     if not sdk_root:
@@ -275,8 +280,7 @@ def validate(args: argparse.Namespace) -> None:
             f"APK versionCode is {metadata.get('versionCode')!r}; "
             f"pubspec.yaml declares {version_code}."
         )
-    if args.tag and args.tag != f"v{version_name}":
-        fail(f"Release tag {args.tag!r} must match pubspec version v{version_name}.")
+    validate_release_tag_version(args.tag, version_name)
 
     apk_certificate = verify_apk_signature(java, apksigner_jar, args.apk)
     if apk_certificate != PRODUCTION_CERT_SHA256:

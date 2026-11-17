@@ -36,7 +36,21 @@ internal class NotificationQueueStorage(context: Context) {
         preferences.getBoolean(MONITORING_CONSENT_KEY, false)
 
     fun setMonitoringConsentGranted(granted: Boolean) {
-        preferences.edit().putBoolean(MONITORING_CONSENT_KEY, granted).apply()
+        val editor = preferences.edit().putBoolean(MONITORING_CONSENT_KEY, granted)
+        if (granted) {
+            editor.apply()
+            return
+        }
+        val saved = editor
+            .remove(ENCRYPTED_PENDING_KEY)
+            .remove(LEGACY_PENDING_KEY)
+            .commit()
+        if (!saved) {
+            throw NotificationStorageException(
+                "Monitoring consent and queued previews could not be saved.",
+            )
+        }
+        cancelExpiryAlarm()
     }
 
     fun retentionDays(): Int {
@@ -82,18 +96,44 @@ internal class NotificationQueueStorage(context: Context) {
 
     fun pendingNotifications(): List<Map<String, Any>> {
         val now = System.currentTimeMillis()
-        val queue = pruneExpired(readQueue(), now)
-        writeQueue(queue)
-        scheduleNextExpiry(queue, now)
-        return (0 until queue.length()).mapNotNull { index ->
-            val item = queue.optJSONObject(index) ?: return@mapNotNull null
-            mapOf(
-                "id" to item.optString("id"),
-                "title" to item.optString("title"),
-                "text" to item.optString("text"),
-                "packageName" to item.optString("packageName"),
-                "receivedAt" to item.optLong("receivedAt"),
+        val stored = pruneExpired(readQueue(), now)
+        val pending = JSONArray()
+        val notifications = mutableListOf<Map<String, Any>>()
+        for (index in 0 until stored.length()) {
+            val item = stored.optJSONObject(index) ?: continue
+            if (item.optBoolean("completed")) continue
+            pending.put(item)
+            notifications.add(
+                mapOf(
+                    "id" to item.optString("id"),
+                    "title" to item.optString("title"),
+                    "text" to item.optString("text"),
+                    "packageName" to item.optString("packageName"),
+                    "receivedAt" to item.optLong("receivedAt"),
+                ),
             )
+        }
+        writeQueue(pending)
+        scheduleNextExpiry(pending, now)
+        return notifications
+    }
+
+    fun markCompleted(id: String?) {
+        if (id.isNullOrEmpty()) return
+        val now = System.currentTimeMillis()
+        val current = pruneExpired(readQueue(), now)
+        var changed = false
+        for (index in 0 until current.length()) {
+            val item = current.optJSONObject(index) ?: continue
+            if (item.optString("id") == id) {
+                item.put("completed", true)
+                changed = true
+                break
+            }
+        }
+        if (changed) {
+            writeQueue(current, durable = true)
+            scheduleNextExpiry(current, now)
         }
     }
 
@@ -111,10 +151,19 @@ internal class NotificationQueueStorage(context: Context) {
     }
 
     fun clear() {
-        preferences.edit()
+        val saved = preferences.edit()
             .remove(ENCRYPTED_PENDING_KEY)
             .remove(LEGACY_PENDING_KEY)
-            .apply()
+            .commit()
+        if (!saved) {
+            throw NotificationStorageException(
+                "Pending notification previews could not be deleted.",
+            )
+        }
+        cancelExpiryAlarm()
+    }
+
+    private fun cancelExpiryAlarm() {
         expiryAlarm()?.let { alarm ->
             alarm.cancel(expiryPendingIntent())
         }
@@ -149,17 +198,26 @@ internal class NotificationQueueStorage(context: Context) {
                 error,
             )
         }
-        writeQueue(queue)
+        writeQueue(queue, durable = true)
         return queue
     }
 
-    private fun writeQueue(queue: JSONArray) {
+    private fun writeQueue(queue: JSONArray, durable: Boolean = false) {
         val editor = preferences.edit().remove(LEGACY_PENDING_KEY)
         if (queue.length() == 0) {
-            editor.remove(ENCRYPTED_PENDING_KEY).apply()
-            return
+            editor.remove(ENCRYPTED_PENDING_KEY)
+        } else {
+            editor.putString(ENCRYPTED_PENDING_KEY, encrypt(queue.toString()))
         }
-        editor.putString(ENCRYPTED_PENDING_KEY, encrypt(queue.toString())).apply()
+        if (durable) {
+            if (!editor.commit()) {
+                throw NotificationStorageException(
+                    "Encrypted notification data could not be saved.",
+                )
+            }
+        } else {
+            editor.apply()
+        }
     }
 
     private fun pruneExpired(queue: JSONArray, now: Long): JSONArray {

@@ -151,6 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const _messageNotificationService = MessageNotificationService();
   late final _pendingNotificationQueue = PendingMessageNotificationQueue(
     remove: _messageNotificationService.remove,
+    markCompleted: _messageNotificationService.markCompleted,
   );
 
   int _selectedTab = 0;
@@ -217,10 +218,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         pendingMessages = await _messageNotificationService.pending();
       } on PlatformException {
         if (mounted) {
-          _showMessage(
-            'Secure notification settings are unavailable. '
-            'No pending message data was changed.',
-          );
+          await _handleUnreadableNotificationStorage();
         }
         return;
       } on StateError {
@@ -358,11 +356,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   if (monitoringConsent)
                     TextButton(
                       onPressed: () async {
+                        final disable =
+                            await _confirmDisableMessageMonitoring();
+                        if (disable != true || !dialogContext.mounted) return;
                         try {
                           await _messageNotificationService
                               .setMonitoringConsent(false);
                           if (dialogContext.mounted) {
-                            setDialogState(() => monitoringConsent = false);
+                            setDialogState(() {
+                              monitoringConsent = false;
+                              pendingMessages = const [];
+                            });
                           }
                         } on PlatformException {
                           if (dialogContext.mounted) {
@@ -489,6 +493,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<bool?> _confirmDisableMessageMonitoring() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disable message monitoring?'),
+        content: const Text(
+          'Cyvora will stop collecting notification previews and delete any '
+          'pending previews stored on this device. Existing scan history is '
+          'not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep enabled'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Disable and delete previews'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmClearPendingNotifications() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -516,6 +544,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) _showMessage('Pending message previews were deleted.');
     } on PlatformException {
       if (mounted) _showMessage('Could not delete pending message previews.');
+    }
+  }
+
+  Future<void> _handleUnreadableNotificationStorage() async {
+    final clear = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Notification previews unavailable'),
+        content: const Text(
+          'Cyvora could not securely open the stored previews. This can happen '
+          'if the device encryption key is unavailable. You can delete the '
+          'unreadable local data; this does not delete scan history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep data'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete unreadable data'),
+          ),
+        ],
+      ),
+    );
+    if (clear != true) return;
+    try {
+      await _messageNotificationService.clearPending();
+      if (mounted) {
+        _showMessage('Unreadable notification data was deleted.');
+      }
+    } on PlatformException {
+      if (mounted) {
+        _showMessage('Could not delete unreadable notification data.');
+      }
     }
   }
 

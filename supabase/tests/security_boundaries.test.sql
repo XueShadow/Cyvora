@@ -1,6 +1,8 @@
+-- Run only with the disposable local Supabase test database.
+-- All fixture data is rolled back at the end of this file.
 begin;
 
-select plan(10);
+select plan(13);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at
@@ -27,6 +29,14 @@ values
     'authenticated',
     'authenticated',
     'security-outsider@example.test',
+    '',
+    now()
+  ),
+  (
+    '10000000-0000-0000-0000-000000000004',
+    'authenticated',
+    'authenticated',
+    'security-invitee@example.test',
     '',
     now()
   );
@@ -159,6 +169,46 @@ select throws_ok(
   'Invitation is invalid or expired',
   'expired family invitations cannot be consumed'
 );
+
+insert into public.family_invites (
+  family_id, invited_email, token_hash, invited_by, expires_at
+)
+values (
+  '20000000-0000-0000-0000-000000000001',
+  'security-invitee@example.test',
+  'security-test-reusable-invite',
+  '10000000-0000-0000-0000-000000000001',
+  now() + interval '1 hour'
+);
+select is(
+  public.consume_family_invite(
+    'security-test-reusable-invite',
+    '10000000-0000-0000-0000-000000000004'
+  ),
+  '20000000-0000-0000-0000-000000000001'::uuid,
+  'a valid invitation can be accepted by its verified email account'
+);
+select throws_ok(
+  $$
+    select public.consume_family_invite(
+      'security-test-reusable-invite',
+      '10000000-0000-0000-0000-000000000004'
+    )
+  $$,
+  'P0001',
+  'Invitation is invalid or expired',
+  'an accepted invitation token cannot be reused'
+);
+reset role;
+delete from auth.users
+ where id = '10000000-0000-0000-0000-000000000004';
+select is(
+  (select count(*) from public.family_members
+    where user_id = '10000000-0000-0000-0000-000000000004'),
+  0::bigint,
+  'deleting a user cascades family membership'
+);
+set local role service_role;
 
 select matches(
   public.reserve_ai_provider_attempt_v2(

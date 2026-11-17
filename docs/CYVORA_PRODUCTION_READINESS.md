@@ -43,17 +43,18 @@ areas.
 The local workspace now includes the approved Android release-workflow
 hardening, notification queue retry behavior, and encrypted notification
 storage with explicit consent, configurable 1/7/30-day retention, expiry, and
-user deletion. A local pgTAP suite was prepared for RLS, family isolation,
-unauthorized RPC, expired invitations, and AI quota behavior, but it was not
-run because Supabase CLI, PostgreSQL, and Docker were unavailable. No
-production database, GitHub settings, credentials, or live providers were
-changed or accessed.
+user deletion. A completed scan is durably marked before queue cleanup, and
+consent revocation clears queued previews. A local pgTAP suite was prepared
+for RLS, family isolation, unauthorized RPC, invite reuse/expiry, user-delete
+cascades, and AI quota behavior, but it was not run because Supabase CLI,
+PostgreSQL, and Docker were unavailable. No production database, GitHub
+settings, credentials, or live providers were changed or accessed.
 
 Latest local results: Flutter analysis passed; Flutter tests passed (64);
-Supabase Node tests passed (89); Android release-ref policy tests passed (7);
-and a debug APK built successfully. PHP/Composer, Deno, iOS tooling, device
-validation, and supported dependency advisory scanners were unavailable or
-not configured. See [test results](CYVORA_TEST_RESULTS.md).
+Supabase Node tests passed (90); Android release/ref/artifact/workflow policy
+tests passed (15); and a debug APK built successfully. PHP/Composer, Deno, iOS
+tooling, device validation, and supported dependency advisory scanners were
+unavailable or not configured. See [test results](CYVORA_TEST_RESULTS.md).
 
 ## Architecture and implementation status
 
@@ -97,8 +98,8 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
 |---|---|
 | Flutter analysis | PASS — no issues |
 | Flutter tests | PASS — 64 |
-| Supabase Node tests | PASS — 89 |
-| Release-ref validator tests | PASS — 7 |
+| Supabase Node tests | PASS — 90 |
+| Release-ref, artifact-version, and workflow policy tests | PASS — 15 |
 | Android debug build | PASS — APK built |
 | `supabase/tests/security_boundaries.test.sql` | PREPARED, NOT RUN — local database tooling unavailable |
 | Dependency advisory scans | NOT RUN — Dart audit command unavailable; PHP/Composer unavailable; no Laravel npm lockfile |

@@ -79,6 +79,13 @@ class ValidateAndroidReleaseRefTests(unittest.TestCase):
         with self.assertRaisesRegex(ReleaseRefError, "event ref"):
             self._validate(event_ref="refs/tags/v9.9.9")
 
+    def test_rejects_pull_request_event(self) -> None:
+        with self.assertRaisesRegex(ReleaseRefError, "Unsupported release event"):
+            self._validate(
+                event_name="pull_request",
+                event_ref="refs/pull/42/merge",
+            )
+
     def test_rejects_tag_commit_not_on_protected_branch(self) -> None:
         self._git("checkout", "-b", "untrusted")
         (self.repository / "tracked.txt").write_text("unreviewed\n", encoding="utf-8")
@@ -91,7 +98,7 @@ class ValidateAndroidReleaseRefTests(unittest.TestCase):
             )
 
     def test_rejects_missing_tag(self) -> None:
-        with self.assertRaises(ReleaseRefError):
+        with self.assertRaisesRegex(ReleaseRefError, "rev-parse"):
             self._validate("v1.2.4", event_ref="refs/tags/v1.2.4")
 
 

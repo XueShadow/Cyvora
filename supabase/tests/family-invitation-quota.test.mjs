@@ -10,6 +10,10 @@ const handler = readFileSync(
   new URL("../functions/family-invitations/index.ts", import.meta.url),
   "utf8",
 );
+const schemaMigration = readFileSync(
+  new URL("../migrations/202606120001_dashboard_mvp.sql", import.meta.url),
+  "utf8",
+);
 
 test("family invitation quota serializes the count and insert per family", () => {
   const lockPosition = migration.indexOf("pg_advisory_xact_lock");
@@ -36,4 +40,23 @@ test("family invitation endpoint creates invites through the atomic RPC", () => 
   assert.match(sendInvitation, /jsonResponse\(429/);
   assert.doesNotMatch(sendInvitation, /\.insert\(/);
   assert.doesNotMatch(sendInvitation, /\.select\('id', \{ count: 'exact'/);
+});
+
+test("family invitation consumption locks rows and rejects expired or reused tokens", () => {
+  const consumeStart = schemaMigration.indexOf(
+    "create or replace function public.consume_family_invite(",
+  );
+  const consumeEnd = schemaMigration.indexOf(
+    "alter table public.profiles enable row level security;",
+    consumeStart,
+  );
+  const consumeFunction = schemaMigration.slice(consumeStart, consumeEnd);
+
+  assert.ok(consumeStart >= 0);
+  assert.ok(consumeEnd > consumeStart);
+  assert.match(consumeFunction, /accepted_at is null/i);
+  assert.match(consumeFunction, /expires_at > now\(\)/i);
+  assert.match(consumeFunction, /for update/i);
+  assert.match(consumeFunction, /update public\.family_invites[\s\S]*accepted_at = now\(\)/i);
+  assert.match(handler, /rpc\(\s*'consume_family_invite'/);
 });

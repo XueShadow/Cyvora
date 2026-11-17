@@ -35,7 +35,8 @@ This is not a penetration test or a claim of production certification.
   encryption backed by Android Keystore, migrates existing plaintext queue
   entries when read, defaults to seven-day expiry, supports 1/7/30-day
   retention, and can be cleared by the user. The Android manifest disables
-  backup. A queued notification is removed only after analysis succeeds.
+  backup. Successful analysis is durably marked in the encrypted queue before
+  cleanup; withdrawing consent deletes queued previews after confirmation.
 - Android release workflow source validates stable tags against the default
   branch, isolates build/sign/publish jobs with least-privilege permissions,
   and gates signing/publishing on named GitHub Environments. Publishing
@@ -76,8 +77,8 @@ executed, and deployed Edge Function revisions remain unverified.
   fails rather than falling back to plaintext. Retention and deletion controls
   are implemented, but exact expiry timing across force-stop/reboot, key-loss
   recovery, OEM lifecycle behavior, and permission revocation have not been
-  tested on devices. Disabling consent stops new collection but does not
-  automatically erase queued previews; the user can delete them separately.
+  tested on devices. Disabling consent now requires confirmation and
+  atomically clears queued previews.
 - **Notification content redaction — NOT IMPLEMENTED:** notifications are
   manually selected before analysis and optional AI processing is separately
   selected. The selected text is not currently redacted locally for names,
@@ -103,7 +104,7 @@ executed, and deployed Edge Function revisions remain unverified.
 - The repository contains migrations 001–004 and their Edge Function
   integration. The production dashboard ledger ends at `202611150005`;
   migrations `202611150006` and `202611170001`–`202611170004` are not recorded
-  as applied. The local Node suite passes 89 tests and Flutter tests pass 64;
+  as applied. The local Node suite passes 90 tests and Flutter tests pass 64;
   these do not replace database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the matching Edge Function, the quota protection
@@ -113,9 +114,10 @@ executed, and deployed Edge Function revisions remain unverified.
   multiple test accounts.
 - `supabase/tests/security_boundaries.test.sql` prepares pgTAP checks for
   scan RLS, family isolation, foreign-account writes, unauthorized RPC
-  execution, expired invitations, and AI quota reservation/exhaustion. Run it
-  only with the local Supabase test database (`supabase test db`); it was not
-  executed here because Supabase CLI, PostgreSQL, and Docker were unavailable.
+  execution, expired and reused invitations, user-deletion cascades, and AI
+  quota reservation/exhaustion. Run it only with the local Supabase test
+  database (`supabase test db`); it was not executed here because Supabase CLI,
+  PostgreSQL, and Docker were unavailable.
   Existing Node tests statically check migration contracts but cannot prove
   database concurrency or deployed policy behavior.
 - Android release Environments named `android-signing` and `android-publish`

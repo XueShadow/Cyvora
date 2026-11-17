@@ -9,11 +9,11 @@ verification.
 | Check | Result | Notes |
 |---|---|---|
 | `flutter analyze --fatal-infos` | **PASS** | No issues found. |
-| `flutter test --no-pub` | **PASS — 64 tests** | Includes queue retry/duplicate handling and notification privacy MethodChannel coverage. |
-| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | **PASS — 89 tests** | Mocked provider flows and static migration-contract assertions; not PostgreSQL integration. |
-| Android release-ref policy tests | **PASS — 7 tests** | `python -m unittest test_validate_android_release_ref` from `flutter/scripts`. |
+| `flutter test --no-pub` | **PASS — 64 tests** | Includes queue retry/duplicate suppression, durable completion-before-cleanup ordering, consent, retention, and deletion MethodChannel coverage. |
+| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | **PASS — 90 tests** | Mocked provider flows and static migration-contract assertions; not PostgreSQL integration. |
+| Android release policy tests | **PASS — 15 tests** | Release-ref, tag/artifact version, and workflow policy tests run from `flutter/scripts`. |
 | `flutter build apk --debug --no-pub` | **PASS** | Built `flutter/build/app/outputs/flutter-apk/app-debug.apk`; Gradle and Android SDK XML warnings were emitted. |
-| `supabase/tests/security_boundaries.test.sql` | **PREPARED, NOT RUN** | Supabase CLI, PostgreSQL, and Docker were unavailable. |
+| `supabase/tests/security_boundaries.test.sql` | **PREPARED (13 assertions), NOT RUN** | Supabase CLI, PostgreSQL, and Docker were unavailable. It includes RLS, family access, unauthorized RPC, expired/reused invite, deletion cascade, and AI quota checks. |
 | `dart pub audit` | **UNAVAILABLE** | The installed Dart SDK has no `pub audit` subcommand. |
 | PHP/Composer audit and Laravel tests | **BLOCKED** | PHP and Composer are not installed/on `PATH`. |
 | Live provider, deployed database, device/OEM, and iOS validation | **NOT TESTED** | No credentials, production systems, or devices were used. |

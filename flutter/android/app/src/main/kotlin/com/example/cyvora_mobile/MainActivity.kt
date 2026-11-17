@@ -36,6 +36,12 @@ class MainActivity : FlutterActivity() {
                             null
                         }
                     }
+                    "markPendingMessageNotificationCompleted" -> {
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.markCompleted(call.argument<String>("id"))
+                            null
+                        }
+                    }
                     "clearPendingMessageNotifications" -> {
                         runNotificationStorageOperation(result) {
                             notificationQueueStorage.clear()
