@@ -31,18 +31,16 @@ those controls take effect. See
 [`supabase/PROVIDER_STATUS.md`](supabase/PROVIDER_STATUS.md) before enabling an
 external provider or applying a migration. No live provider result or Supabase
 deployment is verified by local tests.
-The Supabase production migration ledger was inspected on 2026-11-17 and
-showed `202611150005_mfa_enforcement` as its latest entry. Repository
-migrations `202611150006` and `202611170001`–`202611170004` were not recorded
-as applied. No SQL was executed during the audit. Validate the pending
-migrations in isolated staging before production; repository presence does not
-prove that Edge Functions are deployed.
+The Supabase migration-ledger observation recorded in earlier audit notes is
+historical, not a current deployment check. No production migration or
+function deployment was performed for this update. Repository migrations and
+local tests do not prove which schema or Edge Function revisions are
+deployed; validate them in an isolated staging project before production.
 
-The local baseline passed Flutter analysis, 59 Flutter tests, 89 Supabase
-backend tests, and an Android debug APK build. GitHub Actions run
-[44035823882](https://github.com/XueShadow/Cyvora/actions/runs/44035823882)
-passed for commit `c8aab797`. These checks do not execute migrations against
-PostgreSQL or verify live provider behavior.
+The latest recorded local checks are in
+[`docs/TESTING_AND_VALIDATION.md`](docs/TESTING_AND_VALIDATION.md). They do not
+execute migrations against PostgreSQL, verify live provider behavior, or
+establish current GitHub settings.
 The push/PR checks are defined in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
 [production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),
@@ -60,9 +58,12 @@ and an Android App Bundle (AAB) for Google Play. Releases are published on the
 
 To publish a release:
 
-1. Configure the repository secrets `ANDROID_KEYSTORE_BASE64`,
-   `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. See the keystore
-   instructions in [`flutter/README.md`](flutter/README.md).
+1. Configure the protected GitHub Environments `android-signing` and
+   `android-publish`. Put `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+   `KEY_ALIAS`, and `KEY_PASSWORD` only in `android-signing` Environment
+   secrets, never ordinary repository or organization secrets. Require owner
+   approval for signing and publishing, and restrict deployments to the
+   protected default branch and stable `v*` release tags.
 2. Update the app version in [`flutter/pubspec.yaml`](flutter/pubspec.yaml).
 3. Push a version tag, for example:
 
@@ -71,6 +72,12 @@ To publish a release:
    git push origin v1.0.2
    ```
 
-The workflow builds both release packages and attaches them to the GitHub
-Release for that tag. It can also be started manually from the Actions tab with
-a release tag.
+The workflow validates the tag and its commit against the default branch,
+builds the validated commit, and creates a draft release. An owner must review
+the signed artifacts/checksums and publish the draft manually. Manual
+dispatches are subject to the same tag and branch validation. GitHub
+Environment reviewers, deployment restrictions, and `v*` tag rulesets require
+manual owner configuration; the workflow's use of Environment names does not
+prove that their protection rules are configured. See the [release security
+guide](docs/RELEASE_SECURITY_GUIDE.md) and
+[`flutter/README.md`](flutter/README.md).
