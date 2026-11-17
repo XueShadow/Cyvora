@@ -1,5 +1,15 @@
 # Cyvora full code audit
 
+> **Current status update:** This report is the pre-remediation audit snapshot.
+> Release workflow hardening, encrypted/retained notification storage, queue
+> retry, and notification scan idempotency source changes have since been
+> prepared on `security/complete-production-hardening`. The new idempotency
+> migration has not been run. Existing findings and counts below describe
+> their original baseline. See the
+> [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
+> [remediation report](CYVORA_REMEDIATION_REPORT.md), and
+> [final checklist](CYVORA_FINAL_PRODUCTION_CHECKLIST.md).
+
 **Audit date:** 2026-11-17
 **Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22` on `main`
 **Mode:** Audit only. No application source, production database, credentials,

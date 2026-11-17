@@ -1,5 +1,19 @@
 # Cyvora Independent Code-Level Audit
 
+> **Current status update:** This file preserves the independent pre-remediation
+> audit findings as historical evidence. On the current
+> `security/complete-production-hardening` branch, F-01 has source-level
+> release-ref and protected-Environment mitigations, and the notification
+> queue-loss finding has retry/completion-marker fixes plus a server-side
+> idempotency migration. The migration and pgTAP suite are prepared but have
+> not been executed. No confirmed exploitable vulnerability is currently
+> established by the source-level review. Read the
+> [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
+> [remediation report](CYVORA_REMEDIATION_REPORT.md), and
+> [staging plan](CYVORA_STAGING_VALIDATION.md) for current test results and
+> remaining risks. The original findings below describe the earlier baseline,
+> not the current branch.
+
 **Audit date:** 2026-11-17
 **Repository:** XueShadow/Cyvora
 **Review type:** Independent, read-only second pass

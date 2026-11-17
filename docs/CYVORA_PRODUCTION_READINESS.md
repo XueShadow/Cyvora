@@ -1,5 +1,19 @@
 # Cyvora production readiness
 
+> **Current branch update:** This report's original migration-ledger and test
+> snapshots below are historical and were not rechecked against production.
+> Current local results on `security/complete-production-hardening` are
+> Flutter analyze PASS, Flutter tests PASS (66), Supabase Node tests PASS
+> (94), Android release policy tests PASS (15), and Android debug APK PASS.
+> Migration `202611170005_notification_scan_idempotency.sql` and its 14
+> pgTAP assertions are prepared but NOT RUN; the existing 13-assertion
+> security-boundary suite is also NOT RUN. No production changes were made.
+> The current verdict is **CONDITIONALLY READY FOR ISOLATED STAGING
+> VALIDATION; NOT READY FOR PRODUCTION**. See the
+> [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
+> [remediation report](CYVORA_REMEDIATION_REPORT.md), and
+> [final checklist](CYVORA_FINAL_PRODUCTION_CHECKLIST.md).
+
 **Assessment date:** 2026-11-17
 **Repository:** `XueShadow/Cyvora`
 **Inspected commit:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`
@@ -46,28 +60,29 @@ storage with explicit consent, configurable 1/7/30-day retention, expiry, and
 user deletion. A completed scan is durably marked before queue cleanup, and
 consent revocation clears queued previews. A local pgTAP suite was prepared
 for RLS, family isolation, unauthorized RPC, invite reuse/expiry, user-delete
-cascades, and AI quota behavior, but it was not run because Supabase CLI,
-PostgreSQL, and Docker were unavailable. No production database, GitHub
-settings, credentials, or live providers were changed or accessed.
+cascades, AI quota behavior, and notification scan idempotency, but neither
+suite was run. Supabase CLI and PostgreSQL are unavailable, and the Docker
+engine is not available for a local Supabase stack. No production database,
+GitHub settings, credentials, or live providers were changed or accessed.
 
-Latest local results: Flutter analysis passed; Flutter tests passed (64);
-Supabase Node tests passed (90); Android release/ref/artifact/workflow policy
-tests passed (15); and a debug APK built successfully. PHP/Composer, Deno, iOS
-tooling, device validation, and supported dependency advisory scanners were
-unavailable or not configured. See [test results](CYVORA_TEST_RESULTS.md).
+Latest local results: Flutter analysis passed; Flutter tests passed (66);
+Supabase Node tests passed (94); Android release policy tests passed (15);
+and a debug APK built successfully. PHP/Composer, Deno, iOS tooling, device
+validation, and supported dependency advisory scanners were unavailable or
+not configured. See [test results](CYVORA_TEST_RESULTS.md).
 
 ## Architecture and implementation status
 
 | Area | Status | Evidence and remaining work |
 |---|---|---|
-| Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Current workspace analysis and 64 tests pass (the prior 59-test baseline remains recorded below). |
+| Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Current workspace analysis and 66 tests pass (the earlier 59-test baseline remains historical). |
 | Backend boundary | IMPLEMENTED | `DashboardRepository` delegates Supabase reads and Edge Function requests; deterministic analysis is server-side. |
-| Supabase production schema | PARTIALLY VERIFIED; DEPLOYMENT REQUIRED | Ledger ends at `202611150005_mfa_enforcement`; `202611150006` and `202611170001`–`202611170004` are not recorded. |
+| Supabase production schema | DEPLOYMENT UNVERIFIED | The last ledger observation is historical. Migrations through `202611170005_notification_scan_idempotency.sql` are in the repository; current deployed versions were not checked. |
 | Edge Function deployment | NOT TESTED | Current deployed revisions were not independently inspected. Source presence does not prove deployment. |
 | Family Protection | PARTIALLY IMPLEMENTED; NOT TESTED live | Invite/revoke/accept and membership UI/code exist. Cross-family RLS, concurrent invitation quotas, and lifecycle need isolated database tests. Migration `202611170001` is not recorded in production. |
 | AI guardrails | IMPLEMENTED in repository; NOT TESTED against PostgreSQL/live providers | Daily request limits, deduplication/cooldowns, leases, and circuit breaker are in source/migrations. Production migrations `202611170002`–`004` are absent from the observed ledger. Limits count requests, not provider spend. |
 | Scam detection | PARTIALLY IMPLEMENTED; VERIFIED on a small fixture | Deterministic modules, evidence and risk schema, and optional AI/reputation integrations exist. The 14 synthetic examples are regression checks, not a real-world accuracy estimate. |
-| Android notification monitoring | PARTIALLY IMPLEMENTED; DEVICE TESTING REQUIRED | Previews are opt-in, Keystore-encrypted, expire after a configurable retention period, and can be deleted. Manual review retains failed items for retry; device/OEM, permission-revocation, force-stop, and reboot behavior are unverified. |
+| Android notification monitoring | PARTIALLY IMPLEMENTED; DEVICE TESTING REQUIRED | Previews are opt-in, Keystore-encrypted, expire after configurable retention, and can be deleted. Manual review retains failed items for retry; server idempotency is prepared but awaits migration validation. Device/OEM, permission-revocation, force-stop, and reboot behavior are unverified. |
 | Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally after the notification changes. |
 | Android release/signing | SOURCE HARDENED; OWNER CONFIGURATION REQUIRED | Stable-tag/default-branch checks, least-privilege jobs, gated signing/publishing environments, and draft publishing are implemented. GitHub protected rules, reviewers, secret placement, and signed release behavior were not verified. |
 | iOS | BLOCKED for build/runtime verification | Bundle ID is `com.example.cyvoraMobile`, different from Android `com.example.cyvora_mobile`; no ID was changed. Xcode, signing, provisioning, privacy declarations, and device test were unavailable on Windows. |
@@ -97,11 +112,12 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
 | Check | Result |
 |---|---|
 | Flutter analysis | PASS — no issues |
-| Flutter tests | PASS — 64 |
-| Supabase Node tests | PASS — 90 |
+| Flutter tests | PASS — 66 |
+| Supabase Node tests | PASS — 94 |
 | Release-ref, artifact-version, and workflow policy tests | PASS — 15 |
 | Android debug build | PASS — APK built |
-| `supabase/tests/security_boundaries.test.sql` | PREPARED, NOT RUN — local database tooling unavailable |
+| `supabase/tests/security_boundaries.test.sql` | PREPARED (13 assertions), NOT RUN — local database tooling unavailable |
+| `supabase/tests/notification_scan_idempotency.test.sql` | PREPARED (14 assertions), NOT RUN — local database tooling unavailable |
 | Dependency advisory scans | NOT RUN — Dart audit command unavailable; PHP/Composer unavailable; no Laravel npm lockfile |
 
 ## Prioritized release blockers
@@ -118,8 +134,8 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
    approval.
 4. **Notification privacy and reliability:** test encrypted storage and
    retention on devices, including permission revocation, key recovery,
-   process death, expiry, and deletion. Implement local redaction for
-   personally identifying data/OTPs before optional external provider calls.
+   process death, expiry, and deletion. Validate the server-side minimizer for
+   optional AI provider input; it is heuristic and not on-device redaction.
 5. **Scam evaluation:** expand the reviewed Filipino/Taglish and English
    corpus, measure held-out precision/recall/F1/false positives, and establish
    review/release gates.

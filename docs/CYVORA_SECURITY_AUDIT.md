@@ -1,5 +1,15 @@
 # Cyvora security audit
 
+> **Current status update:** This audit began from the earlier repository
+> baseline below. Notification queue encryption/retention and Android release
+> workflow hardening have since been implemented in source. The queue retains
+> failed items and supports retry; notification scans now use an idempotency
+> migration prepared on the current branch. That migration, PostgreSQL/RLS
+> behavior, GitHub owner settings, live providers, and device behavior remain
+> unverified. For current results, use
+> [the complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md) and
+> [remediation report](CYVORA_REMEDIATION_REPORT.md).
+
 **Audit date:** 2026-11-17
 **Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`
 **Method:** Read-only static review by the security-review agent, plus local

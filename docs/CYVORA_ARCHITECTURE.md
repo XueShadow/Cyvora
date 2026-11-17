@@ -1,5 +1,13 @@
 # Cyvora architecture map
 
+> **Current status update:** The architecture below describes the earlier
+> audit baseline. Android notification previews now use encrypted,
+> consent-controlled local storage with retention/deletion controls, and
+> notification scan requests carry a server idempotency key on the current
+> remediation branch. Database execution and device behavior remain
+> unverified. See the
+> [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md).
+
 **Audit date:** 2026-11-17
 **Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`
 **Scope:** Read-only architecture inspection; no application code or production
