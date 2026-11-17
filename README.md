@@ -31,18 +31,26 @@ those controls take effect. See
 [`supabase/PROVIDER_STATUS.md`](supabase/PROVIDER_STATUS.md) before enabling an
 external provider or applying a migration. No live provider result or Supabase
 deployment is verified by local tests.
-The guardrail migrations 001–004 are present in the repository; this does not
-establish that they were applied to a local, staging, or production database.
-Migration 004 is a forward-only correction so migration 003 remains unchanged.
-PostgreSQL execution and live provider tests remain unverified.
-The current local backend suite passes 89 tests, and Flutter analysis plus 59
-widget tests pass. These local checks do not execute the migrations against
-PostgreSQL or prove deployed RPC/function behavior.
+The Supabase production migration ledger was inspected on 2026-11-17 and
+showed `202611150005_mfa_enforcement` as its latest entry. Repository
+migrations `202611150006` and `202611170001`–`202611170004` were not recorded
+as applied. No SQL was executed during the audit. Validate the pending
+migrations in isolated staging before production; repository presence does not
+prove that Edge Functions are deployed.
+
+The local baseline passed Flutter analysis, 59 Flutter tests, 89 Supabase
+backend tests, and an Android debug APK build. GitHub Actions run
+[44035823882](https://github.com/XueShadow/Cyvora/actions/runs/44035823882)
+passed for commit `c8aab797`. These checks do not execute migrations against
+PostgreSQL or verify live provider behavior.
 The push/PR checks are defined in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
 [production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),
-[security notes](docs/SECURITY.md), and
-[verified audit results](docs/CYVORA_PRODUCTION_AUDIT.md) before release.
+[full code audit](docs/CYVORA_FULL_CODE_AUDIT.md),
+[security audit](docs/CYVORA_SECURITY_AUDIT.md),
+[architecture map](docs/CYVORA_ARCHITECTURE.md),
+[test results](docs/CYVORA_TEST_RESULTS.md), and
+[security notes](docs/SECURITY.md) before release.
 
 ## Download an Android release
 

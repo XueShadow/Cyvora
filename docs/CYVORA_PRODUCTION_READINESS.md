@@ -1,184 +1,121 @@
 # Cyvora production readiness
 
 **Assessment date:** 2026-11-17
-
 **Repository:** `XueShadow/Cyvora`
-
-**Production changes:** None. No production migration, secret, Supabase
-setting, signing identity, or application ID was changed.
+**Inspected commit:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`
+**Production changes during this audit:** None
 
 ## Status definitions
 
-- **IMPLEMENTED** — code or configuration exists.
-- **VERIFIED** — the listed check actually ran and passed.
-- **PARTIALLY IMPLEMENTED** — meaningful support exists, but key requirements
-  or verification remain incomplete.
-- **BLOCKED** — required hardware, signing material, access, or tooling was not
-  available.
-- **NOT TESTED** — no relevant execution or integration test was performed.
-- **REQUIRES MANUAL ACTION** — an owner must configure, approve, or verify the
+- **IMPLEMENTED** — source or configuration is present.
+- **VERIFIED** — the stated check was actually run and passed.
+- **PARTIALLY IMPLEMENTED** — some support exists, but key behavior or
+  verification is incomplete.
+- **NOT TESTED** — no relevant runtime/integration test was performed.
+- **BLOCKED** — required tooling, hardware, approval, or external access was
+  unavailable.
+- **REQUIRES MANUAL ACTION** — an owner must configure, approve, or verify an
   item outside source code.
 
 ## Executive summary
 
-Cyvora's existing Flutter + Supabase architecture remains intact. The
-repository includes Flutter, Supabase Auth/PostgreSQL/Edge Functions, optional
-AI and URL-intelligence adapters, family features, and a standalone Laravel
-scaffold. Recent changes improve lockfile reproducibility, bound request
-parsing, clarify startup diagnostics, and add ordinary push/PR CI.
+The existing Flutter + Supabase architecture is intact. Local Flutter
+analysis, widget tests, Supabase backend tests, and an Android debug build
+passed. GitHub Actions run [44035823882](https://github.com/XueShadow/Cyvora/actions/runs/44035823882)
+passed for commit `c8aab797`.
 
-Production readiness is **not established**. GitHub Actions run
-[43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544)
-passed for pushed commit `ec21d4b`. Migration 004 carries the dedupe-order
-correction forward while preserving migration 003's published contents. The
-scan-analysis reservation-ID fix is also pushed. No database migration or
-function deployment has been verified. Public v1.0.1 Android release
-artifacts were checksum- and signature-validated against the pinned production
-certificate, but this does not verify a future release. The iOS bundle ID
-differs in case/spelling from Android and remains unchanged pending approval.
-No exact cause for the reported HarmonyOS force-stop is known because no
-device crash log was available. No Supabase migration/function deployment was
-verified; no live provider call was made.
+**Production readiness is not established.** The Supabase production
+migration ledger was inspected in the dashboard and showed
+`202611150005_mfa_enforcement` as its latest recorded version. Repository
+migrations `202611150006_scan_history_retention.sql` and
+`202611170001`–`202611170004` were absent from the ledger. Deployed Edge
+Function revisions were not verified. No SQL or Edge Function deployment was
+performed. The Supabase dashboard displayed an active technical-issue banner
+at the time of inspection.
+
+The specialist static security review found no substantiated exploitable
+vulnerabilities in the reviewed workspace. This is not a penetration test.
+The [security audit](CYVORA_SECURITY_AUDIT.md) lists controls and unverified
+areas.
 
 ## Architecture and implementation status
 
-| Area | Status | Evidence / remaining work |
+| Area | Status | Evidence and remaining work |
 |---|---|---|
-| Flutter client and Supabase Auth | VERIFIED | `flutter analyze --fatal-infos` and `flutter test --no-pub` passed locally on the current working tree (59 tests). |
-| Dependency reproducibility | VERIFIED | `flutter/pubspec.lock` is tracked, `material_ui` is constrained, and `flutter pub get --enforce-lockfile` passed locally. |
-| Normal push/PR CI | VERIFIED | GitHub Actions run [43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544) passed Flutter dependency validation, analysis, tests, Android debug build, and backend tests for pushed commit `ec21d4b`. |
-| Android identity and configuration | VERIFIED | Public v1.0.1 APK/AAB validated as `com.example.cyvora_mobile`, version `1.0.1+1`, min API 24, target API 36, ARM64/ARM32/x86_64; certificate SHA-256 `d732eaa269a8707b2447c73aee5a14885d030d59b9dc7382302321c750ad3afa` matches the repository pin. No ID or signing identity was changed. |
-| Android startup and HarmonyOS | NOT TESTED | Fixed-phase startup logs exist. No Huawei crash log was supplied; the cause is unknown. The emulator was offline. |
-| Android release | PARTIALLY IMPLEMENTED | The public v1.0.1 artifacts passed checksum/signature validation. A new signed release build and device install/update test were not performed. |
-| iOS | PARTIALLY IMPLEMENTED | iOS bundle ID is `com.example.cyvoraMobile`, while Android is `com.example.cyvora_mobile`; this identity mismatch is not changed without approval. Xcode build/runtime, signing, provisioning, privacy declarations, and distribution remain unverified. |
-| Supabase auth, RLS, and Edge Functions | PARTIALLY IMPLEMENTED | Migrations 001–004 and the v2 provider RPC integration are present in GitHub. Migration 004 is the forward correction for dedupe reservation ordering. No evidence confirms application to local, staging, or production databases. PostgreSQL execution, Deno runtime, and live authorization behavior are NOT TESTED. |
-| Family Protection | PARTIALLY IMPLEMENTED | Invitation tokens are hashed, expire, require verified-email matching, and are consumed under a lock. A 16 KiB request-body cap is implemented. The user reports the atomic quota migration was deployed; deployment was not independently verified, and live concurrency/family isolation tests remain unavailable. |
-| Scam detection | PARTIALLY IMPLEMENTED | Deterministic message/URL rules, evidence modules, `UNKNOWN`/unavailable states, and moderation-gated indicators exist. A new 14-case synthetic fixture passed locally; it is not representative production accuracy. |
-| Adaptive intelligence | PARTIALLY IMPLEMENTED | Reviewed examples, staged versioned datasets, evaluation gates, activation, and rollback support are documented/implemented. Real-world labeled data and operational evaluation are still required. |
-| AI providers | PARTIALLY IMPLEMENTED | Pushed code uses v2 reservation/completion RPCs for scan analysis and assistant chat, with HMAC deduplication, cooldowns, provider leases, daily budgets, and a circuit breaker. The 89-test backend suite covers mock fallback/timeout reservation accounting and static SQL contracts. PostgreSQL concurrency, lease cleanup, cooldown boundaries, RPC permissions, migration application, and live provider behavior are NOT TESTED. Request counts are not billing caps. |
-| URL reputation | PARTIALLY IMPLEMENTED | Adapter behavior and local/private destination filtering have mocked coverage. No live provider calls or pricing/retention checks were performed. |
-| Laravel | PARTIALLY IMPLEMENTED | Laravel currently serves a standalone scaffold/default page; no app integration contract was identified. Confirm whether it is intentionally required. |
+| Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Flutter analysis and 59 widget tests passed. |
+| Backend boundary | IMPLEMENTED | `DashboardRepository` delegates Supabase reads and Edge Function requests; deterministic analysis is server-side. |
+| Supabase production schema | PARTIALLY VERIFIED; DEPLOYMENT REQUIRED | Ledger ends at `202611150005_mfa_enforcement`; `202611150006` and `202611170001`–`202611170004` are not recorded. |
+| Edge Function deployment | NOT TESTED | Current deployed revisions were not independently inspected. Source presence does not prove deployment. |
+| Family Protection | PARTIALLY IMPLEMENTED; NOT TESTED live | Invite/revoke/accept and membership UI/code exist. Cross-family RLS, concurrent invitation quotas, and lifecycle need isolated database tests. Migration `202611170001` is not recorded in production. |
+| AI guardrails | IMPLEMENTED in repository; NOT TESTED against PostgreSQL/live providers | Daily request limits, deduplication/cooldowns, leases, and circuit breaker are in source/migrations. Production migrations `202611170002`–`004` are absent from the observed ledger. Limits count requests, not provider spend. |
+| Scam detection | PARTIALLY IMPLEMENTED; VERIFIED on a small fixture | Deterministic modules, evidence and risk schema, and optional AI/reputation integrations exist. The 14 synthetic examples are regression checks, not a real-world accuracy estimate. |
+| Android notification monitoring | PARTIALLY IMPLEMENTED | Native notification listener queues previews and Flutter offers manual review; automatic background analysis and device/OEM verification are absent. |
+| Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally. |
+| Android release/signing | PARTIALLY VERIFIED; REQUIRES MANUAL ACTION | Production identity must be confirmed before a release. This audit did not build a new signed release or test install/update behavior. |
+| iOS | BLOCKED for build/runtime verification | Bundle ID is `com.example.cyvoraMobile`, different from Android `com.example.cyvora_mobile`; no ID was changed. Xcode, signing, provisioning, privacy declarations, and device test were unavailable on Windows. |
+| Laravel | PARTIALLY IMPLEMENTED | Laravel 13 scaffold exposes a default welcome route and example tests; no Cyvora integration contract was identified. Confirm its intended role. |
+| CI | VERIFIED | GitHub Actions run 44035823882 succeeded for the inspected commit. CI does not execute PostgreSQL/RLS integration, live providers, iOS, or device notification tests. |
 
-## Security and privacy
+## Baseline checks
 
-### Confirmed safeguards
+| Check | Result |
+|---|---|
+| `flutter analyze --fatal-infos` | PASS — no issues found |
+| `flutter test --no-pub` | PASS — 59 tests |
+| `node --experimental-strip-types --test .\supabase\tests\*.test.mjs` | PASS — 89 tests |
+| `flutter build apk --debug --no-pub` | PASS — built debug APK; Gradle and SDK XML warnings were emitted |
+| GitHub Actions CI | PASS — run 44035823882 for `c8aab797` |
+| `php artisan test` | BLOCKED — PHP is not installed/on `PATH` |
+| PostgreSQL migration/RLS tests | NOT TESTED — no `psql`/Supabase CLI; Docker engine unavailable |
+| Deno Edge Function runtime tests | NOT TESTED — Deno unavailable |
+| Live AI/URL provider requests | NOT TESTED — no credentials accessed or requests made |
+| iOS build and device test | NOT TESTED — Xcode unavailable on Windows |
+| Android physical/HarmonyOS test | NOT TESTED — no device crash log/device validation |
 
-- Request bodies for `family-invitations` and centralized scam analysis are
-  bounded; malformed/non-object invitation input is rejected.
-- Both protected functions manually validate the bearer token and check MFA
-  before privileged operations despite gateway JWT verification being
-  disabled for CORS preflight support.
-- Invitation consumption uses a service-role-only RPC, token hashes, expiry,
-  verified-email checks, and row locking.
-- AI output cannot independently promote a result to malicious over verified
-  indicators. Optional external analysis requires explicit selection and
-  consent.
-- `supabase/.env.example` contains blank values only. Real provider keys and
-  the service-role key are not included in the repository.
+See [detailed test results](CYVORA_TEST_RESULTS.md).
 
-### Residual risks
+## Prioritized release blockers
 
-- User-reported deployment of the atomic invitation quota fix is not
-  independently verified; live concurrent-request tests remain unavailable.
-- MFA is not forced for every account; AAL2 applies to users with verified
-  factors.
-- Family isolation and RLS need tests using separate accounts on an isolated
-  database.
-- AI request budgets/circuit breaker and v2 cooldown/deduplication/concurrency
-  controls are present in pushed code, but deployment is unverified. PostgreSQL
-  behavior has not been executed. Migration 004 contains the forward-only
-  dedupe admission fix; database application is unverified. These controls
-  limit request counts, not provider spend.
-- Android notification-listener content is kept in app-private preferences,
-  but application-layer encryption and tested retention controls are absent.
-- Optional third-party providers may process scan text/URLs under their own
-  terms and retention policies; live policies were not checked.
+1. **Database/schema alignment:** validate pending migrations in isolated
+   staging, in timestamp order (`202611150006`, then `202611170001`–`004`).
+   Run RPC, RLS, family isolation, concurrency, lease-expiry, cooldown, and
+   circuit-breaker tests before any production change.
+2. **Confirm deployed Edge Functions:** verify the actual revisions and
+   ensure they match the database schema before enabling optional AI or
+   relying on family invitation creation.
+3. **Confirm app identities:** owner must approve canonical Android/iOS
+   identifiers and release/signing history. Do not change them before
+   approval.
+4. **Notification privacy and reliability:** choose retention/encryption
+   requirements, make scanning behavior match the user-consent model, and
+   test queue recovery and Android permission revocation on devices.
+5. **Scam evaluation:** expand the reviewed Filipino/Taglish and English
+   corpus, measure held-out precision/recall/F1/false positives, and establish
+   review/release gates.
+6. **iOS verification:** build/sign/test on macOS/Xcode after identity and
+   provisioning are confirmed.
+7. **Laravel decision:** document the intended service boundary or explicitly
+   retain it as an unused scaffold.
+8. **Operational checks:** configure provider-side spend limits and verify
+   provider model availability, plan terms, retention, and rate limits in
+   staging. Request quotas do not guarantee a monetary cap.
 
-See [SECURITY.md](SECURITY.md) for the safeguards and residual risks in more
-detail.
+## Manual actions and safety
 
-## Scam evaluation
+- Create or identify an isolated staging Supabase project; no staging branch
+  was visible during the dashboard inspection.
+- Apply and test migrations in staging, then verify the resulting ledger and
+  deployed function revisions. Do not infer deployment from Git presence.
+- Obtain owner approval and a reviewed deployment plan before production
+  migrations, Edge Function deployments, identity changes, or signing changes.
+- Keep provider/service-role keys in server-side secret storage. No secrets
+  were read or changed during this audit.
+- Obtain redacted HarmonyOS crash logs before diagnosing the reported startup
+  failure; do not infer a root cause without device evidence.
 
-`supabase/tests/scam-evaluation.test.mjs` contains 14 synthetic labeled
-examples: 7 scam-like and 7 legitimate English/Filipino/Taglish messages or
-URLs. Its executed focused test reported 7 true positives, 7 true negatives,
-0 false positives, and 0 false negatives (precision, recall, and accuracy
-were 1.0 on this small fixture). This is only a deterministic regression
-fixture; it is not a statistically meaningful estimate of real-world
-accuracy. Expand the reviewed corpus before setting release thresholds.
+## Related audit records
 
-## CI and tests
-
-GitHub Actions run
-[43955450544](https://github.com/XueShadow/Cyvora/actions/runs/43955450544)
-passed both Flutter and backend jobs for pushed commit `ec21d4b`, including
-dependency validation, analysis, widget tests, backend Node tests, and the
-Android debug build. Production release signing remains separate.
-
-Checks rerun locally against the current working tree:
-
-- `flutter analyze` — **PASSED**
-- `flutter test --no-pub` — **PASSED, 59 tests**
-- `node --experimental-strip-types --test supabase/tests/*.test.mjs` —
-  **PASSED, 89 tests**; this suite uses mocks
-  and static SQL contracts and does not execute migrations against PostgreSQL.
-- Synthetic scam fixture — **PASSED, 14 examples** (included in the full Node run)
-
-Deno Edge Function tests, PostgreSQL migration execution, live RLS/family tests,
-Huawei device testing, and iOS tests remain unavailable or blocked. Flutter
-analysis and widget tests passed locally. Public v1.0.1 APK/AAB signature and
-checksum validation passed previously; a new release build was not produced.
-
-## Files changed in the current repair work
-
-- `.gitignore` — explicitly permits only `supabase/.env.example` under the
-  `.env.*` ignore rule; no secret values were found in the template.
-- `.github/workflows/ci.yml` — enables Gradle dependency caching; does not use
-  production signing credentials.
-- `supabase/tests/scam-evaluation.test.mjs` — adds a synthetic labeled
-  regression fixture.
-- `supabase/migrations/202611170001_atomic_family_invite_limit.sql`,
-  `supabase/functions/family-invitations/index.ts`, and
-  `supabase/functions/_shared/database.types.ts` and
-  `supabase/tests/family-invitation-quota.test.mjs` — implement and verify the
-  atomic invitation quota path locally; production deployment was not done.
-- `supabase/migrations/202611170002_ai_provider_guardrails.sql`,
-  `supabase/functions/_shared/ai-provider-analysis.ts`,
-  `supabase/functions/scam-intelligence/index.ts`, and tests add daily request
-  budgets, provider circuit-breaker logic, and v2 reservation accounting.
-  Migration `202611170003_ai_request_dedup_cooldowns.sql` remains unchanged
-  from its published contents. New migration
-  `202611170004_ai_request_dedup_quota_reservation.sql` defers dedupe
-  recording until quota reservation succeeds. The scan reservation-ID fix is
-  in the shared provider adapter. No migration or Edge Function deployment
-  was performed.
-- `README.md`, `flutter/README.md`, and `supabase/README.md` — setup, CI,
-  testing, staging-only deployment, and platform guidance.
-- `supabase/TRUSTED_INTELLIGENCE.md` — corrects the documented Node type
-  stripping option.
-- `docs/SECURITY.md` and this report — describe evidence, safeguards, and
-  verified limitations.
-
-## Release blockers and next tasks
-
-1. Check migration history in an approved environment, then validate
-   migrations 001–004 against isolated PostgreSQL/Supabase staging and run
-   live reservation/concurrency tests.
-2. Deploy the approved migrations and Edge Function to isolated staging,
-    configure request limits and provider-side spend caps, then execute
-    concurrency, RLS, and family lifecycle tests.
-3. Obtain a redacted HarmonyOS crash log and test supported Android versions
-   and representative OEM devices.
-4. On macOS, confirm the intended iOS bundle identity before validating build,
-   launch, signing, provisioning, redirect configuration, and privacy
-   declarations.
-5. Configure signing only through the established production identity and run
-   APK/AAB signature, ABI, SDK, version, install, and update validation.
-6. Use a reviewed, labeled Filipino/Taglish dataset to evaluate false
-   positives and false negatives before expanding trusted rules.
-7. Confirm whether Laravel is required and document its intended API boundary.
-
-No migration or Edge Function deployment was performed during this work. The
-user previously reported deploying the family invitation quota fix; that
-deployment was not independently verified. No production data, credentials,
-application ID, or signing identity was changed.
+- [Full code audit](CYVORA_FULL_CODE_AUDIT.md)
+- [Security audit](CYVORA_SECURITY_AUDIT.md)
+- [Architecture map](CYVORA_ARCHITECTURE.md)
+- [Test results](CYVORA_TEST_RESULTS.md)

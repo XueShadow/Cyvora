@@ -31,13 +31,18 @@ This is not a penetration test or a claim of production certification.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
 
+The Supabase production migration ledger was inspected on 2026-11-17 and
+showed `202611150005_mfa_enforcement` as its latest entry. Migrations
+`202611150006` and `202611170001`–`202611170004` were not recorded. No SQL was
+executed, and deployed Edge Function revisions remain unverified.
+
 ## Confirmed residual risks and unverified controls
 
 - **Invitation rate-limit race — FIX IMPLEMENTED, DEPLOYMENT REQUIRED:** a new
   migration adds a per-family transaction advisory lock around the quota check
-  and insert; the Edge Function now uses that RPC. The user reports deployment,
-  but it has not been independently verified and no live concurrent-request
-  test was available.
+  and insert; the Edge Function now uses that RPC. The migration is absent
+  from the observed production ledger, and no live concurrent-request test was
+  available.
 - **MFA enrollment — PARTIALLY IMPLEMENTED:** AAL2 is required for users who
   have a verified factor, but enrollment is not mandatory for all accounts.
 - **Family isolation — NOT TESTED:** ownership and RLS were inspected, but
@@ -75,20 +80,20 @@ This is not a penetration test or a claim of production certification.
 - Do not deploy migrations, change production secrets/settings, or release a
   signed build without separate approval and a reviewed deployment plan.
 - The repository contains migrations 001–004 and their Edge Function
-  integration. This establishes Git presence only: local, staging, and
-  production application are unverified. Windows Application Control blocked
-  the Supabase CLI in this workspace. The local Node suite passes 89 tests and
-  Flutter tests pass 59; these do not replace database, provider, or device
-  testing.
+  integration. The production dashboard ledger ends at `202611150005`;
+  migrations `202611150006` and `202611170001`–`202611170004` are not recorded
+  as applied. The local Node suite passes 89 tests and Flutter tests pass 59;
+  these do not replace database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
-  environment together with the updated Edge Function, the deployed version
-  retains the prior race condition.
+  environment together with the matching Edge Function, the quota protection
+  is not verified in production.
 - Run backend unit tests and Flutter tests without production credentials.
   Validate RLS and family account isolation against an isolated database with
   multiple test accounts.
 - Review redacted device logs before sharing them; remove tokens, notification
   content, addresses, email addresses, and other personal data.
 
-See [the verified audit](CYVORA_PRODUCTION_AUDIT.md) and
-[the production readiness report](CYVORA_PRODUCTION_READINESS.md) for
-evidence, test results, and remaining blockers.
+See [the verified audit](CYVORA_PRODUCTION_AUDIT.md),
+[the latest security review](CYVORA_SECURITY_AUDIT.md), and
+[the production readiness report](CYVORA_PRODUCTION_READINESS.md) for evidence,
+test results, and remaining blockers.

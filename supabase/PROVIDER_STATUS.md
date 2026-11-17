@@ -143,11 +143,19 @@ fetched.
 
 ## Database, deployment, and verification
 
+The Supabase Dashboard migration ledger for the configured production project
+was inspected on 2026-11-17. Its latest recorded version was
+`202611150005_mfa_enforcement`. The repository's `202611150006_scan_history_retention.sql`
+and migrations `202611170001`–`202611170004` were not present in that ledger.
+No SQL was executed during this audit, and the deployed Edge Function revisions
+were not verified. Apply and test the pending migrations in timestamp order in
+an isolated staging project before considering production deployment.
+
 Migrations 001–004 and the v2 Edge Function RPC integration are present in the
-repository. No evidence confirms they were applied to a local, staging, or
-production database. PostgreSQL execution, Edge Function runtime tests, and
-live provider tests are NOT TESTED. Migration 004 is a forward correction;
-migration history must be checked before applying it.
+repository. Production ledger inspection confirms that 001–004 are not
+recorded as applied. PostgreSQL execution, Edge Function runtime tests, and
+live provider tests are NOT TESTED. Migration 004 is a forward correction and
+depends on the preceding guardrail migrations.
 
 Database migrations in the repository contain scan evidence, reviewed
 indicators, feedback, and ownership protections. The
