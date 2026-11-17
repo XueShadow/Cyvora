@@ -6,9 +6,9 @@
 
 ## Executive summary
 
-This pass reviewed the four requested existing reports first, then checked claims against repository source and ran safe local tests. No confirmed exploitable vulnerability meeting the reporting threshold was identified in the reviewed source. This is not a penetration test or proof of deployed security.
+This expanded pass checked the existing audit against application, Supabase, Laravel, Android, and workflow source and ran safe local checks. It identified one **POTENTIAL HIGH-severity CI/release trust-boundary issue**: a `v*` tag can trigger release steps without a workflow-level check that its commit is an approved protected-branch commit. Whether this is exploitable depends on GitHub tag permissions, environment approvals, and secret availability, which were not inspected. No confirmed exploitable vulnerability was proven. This is not a penetration test or proof of deployed security.
 
-The source contains several relevant controls: explicit Edge Function authentication and MFA checks, restrictive database policies and RPC grants, bounded request parsing, fixed provider endpoints, URL destination checks, and Android notification-listener binding restrictions. Their effective behavior in production remains unverified where it depends on the deployed database/functions, live providers, or device/runtime behavior.
+The source contains several relevant controls: explicit Edge Function authentication and MFA checks, restrictive database policies and RPC grants, bounded request parsing, fixed provider endpoints, URL destination checks, and Android notification-listener binding restrictions. Their effective behavior in production remains unverified where it depends on the deployed database/functions, live providers, GitHub configuration, or device/runtime behavior.
 
 One previously documented reliability/privacy concern was independently reconfirmed: notification items are removed from the review queue before analysis and are not restored when that analysis fails. The queue is capped by count, but no time-based expiry or application-level encryption was found in the examined storage path. This is not a newly discovered exploitable vulnerability; see [Notification handling](#6-notification-data-encryption-and-retention) and [Android background lifecycle](#9-android-background-processing-and-lifecycle).
 
@@ -23,9 +23,54 @@ No production systems, credentials, or database state were accessed. `supabase/.
 
 ## Security findings
 
-**No confirmed exploitable security vulnerabilities were identified in this pass.** Accordingly, there are no vulnerability reproduction procedures or security remediations to apply from this report.
+**One potential release-workflow security issue requires owner verification; no exploitation was attempted.** No confirmed exploitable application vulnerability was identified.
+
+### F-01 — Release workflow may publish an unapproved tagged ref
+
+| Field | Assessment |
+|---|---|
+| Classification | POTENTIAL — source trigger/guard behavior is confirmed; exploitability depends on GitHub tag rules and environment controls |
+| Severity / confidence | HIGH / 8 of 10 |
+| File and lines | `.github/workflows/android-release.yml:4-16,70-81,120-147,200-203` |
+| Affected component | Android release workflow tag trigger, build/signing, and publishing steps |
+| Root cause | The workflow accepts matching `v*` tags and validates tag syntax, but the reviewed workflow does not verify that the tag points to an approved commit on the protected release branch. The workflow has `contents: write` permission and supplies signing secrets to release steps. Repository tag rules, environment approvals, and secret exposure controls were not inspected. |
+| Safe reproduction | In a disposable repository with dummy signing values only, push a syntactically valid version tag on a commit not on the protected release branch. Observe whether release steps proceed. Do not run this against Cyvora, production credentials, or real release tags. |
+| Potential impact | If an actor can create a matching tag and signing secrets are available to the job, unreviewed code may be built and published as a signed release; workflow/build changes could also put signing credentials at risk. This impact is conditional, not verified against GitHub settings. |
+| Recommended remediation | Protect the release-tag namespace with a ruleset and restricted tag creation; require approval through a protected GitHub Environment before exposing signing secrets; validate the tagged commit against the approved release branch; limit `contents: write` to the publishing job/step where feasible. |
+| Required regression test | In a disposable repository, verify an unapproved-ref tag is rejected before signing secrets are available and that a valid protected-branch tag requires the configured release approval. |
 
 The independently reconfirmed notification queue behavior is a reliability/privacy concern rather than a demonstrated authorization or remote-exploitation vulnerability. It was already documented in the previous audit materials and is not counted as a new security finding.
+
+## Architecture map
+
+| Layer | Responsibility and verified connection |
+|---|---|
+| Flutter application | `flutter/lib/main.dart` initializes the app; `flutter/lib/auth_gate_impl.dart:8-65` gates the dashboard on the Supabase session. UI flows call `flutter/lib/dashboard/dashboard_repository.dart` for auth-backed data and analysis operations. |
+| Supabase Edge Functions | `scam-intelligence` validates authenticated scan requests and composes deterministic analysis, URL reputation, and optional AI assistance. `family-invitations` handles family invitation operations. Shared code under `supabase/functions/_shared/` contains request parsing, URL/network checks, risk assessment, and provider adapters. |
+| PostgreSQL / Supabase | `supabase/migrations/` defines tables, RLS policies, RPCs, quotas, and related schema changes. Client-facing data access is intended to be constrained by RLS; privileged operations use server-side functions/RPCs. Actual deployed schema and grants were not verified. |
+| Android native integration | The notification-listener service queues notification previews in app-private preferences; the Flutter dashboard exposes a manual review flow. The inspected flow does not replace the default SMS application. Device lifecycle behavior was not tested. |
+| Laravel | A separate Laravel scaffold exists. The reviewed `laravel/routes/web.php:5-7` serves the default welcome page; no Cyvora API contract or active Flutter integration was identified in the reviewed routes. |
+| CI/CD | `.github/workflows/ci.yml` runs CI checks. `.github/workflows/android-release.yml` builds/signs/publishes release artifacts from tags or manual dispatch; see F-01 for a conditional trust-boundary concern. Hosted repository rules and secrets were not inspected. |
+
+## End-to-end user journey
+
+Statuses below describe source evidence, not proof that the production configuration is correct.
+
+| Journey step | Status | Source evidence and limitations |
+|---|---|---|
+| Registration | CONFIRMED in source | `flutter/lib/auth_screen.dart:308-335` calls Supabase sign-up and presents a confirmation state when no session is returned. Production email-confirmation settings were not checked. |
+| Email verification | CONFIRMED in source; NOT VERIFIED in production | Resend/confirmation UI appears at `flutter/lib/auth_screen.dart:347-362`; invitation consumption also requires verified email in `supabase/migrations/202606120001_dashboard_mvp.sql:284-327`. No production email delivery/configuration test was run. |
+| Login | CONFIRMED in source | `flutter/lib/auth_screen.dart:308-335` handles sign-in; `flutter/lib/auth_gate_impl.dart:8-65` routes based on auth state. No live-account test was run. |
+| Password recovery | CONFIRMED in source; NOT VERIFIED end-to-end | Reset request is in `flutter/lib/auth_screen.dart:389-426`; recovery event/update handling is in `flutter/lib/auth_gate_impl.dart:274-324`. Email delivery and deep-link behavior were not exercised. |
+| Dashboard | CONFIRMED in source | Authenticated state routes to the dashboard/repository through `flutter/lib/auth_gate_impl.dart:50-65`. Live data and offline behavior were not exercised. |
+| Manual scam analysis | CONFIRMED in source | Scan selection, disclosures, and submission are in `flutter/lib/dashboard/dashboard_screen.dart:835-920`; request validation and Edge Function invocation are in `flutter/lib/dashboard/dashboard_repository.dart:922-965`. No live backend/provider request was made. |
+| URL analysis | CONFIRMED in source; NOT VERIFIED live | URL reputation/network protections are in `supabase/functions/_shared/url-reputation.ts` and `network-analysis.ts`. No live DNS/network or provider test was performed. |
+| Notification monitoring | CONFIRMED in source; NOT VERIFIED on device | Android listener registration is in `flutter/android/app/src/main/AndroidManifest.xml:40-48`; queue and manual review behavior are in `MessageNotificationListenerService.kt` and `dashboard_screen.dart:320-371`. No OEM/background/permission-revocation test was run. |
+| Security alerts | CONFIRMED in source; NOT VERIFIED live | Alert read operation is implemented in `flutter/lib/dashboard/dashboard_repository.dart:1601-1606`. No production notification delivery or multi-account test was run. |
+| Family creation | CONFIRMED in source; NOT VERIFIED against database | Family repository operations appear in `flutter/lib/dashboard/dashboard_repository.dart:1612-1840`; live RLS authorization was not exercised. |
+| Family invitations | CONFIRMED in source; concurrency NOT VERIFIED | Client operations and server-side Edge Function/RPC path are present; atomic invitation-limit SQL is in `supabase/migrations/202611170001_atomic_family_invite_limit.sql:1-72`. No concurrent PostgreSQL test was run. |
+| Family member management | CONFIRMED in source; cross-account access NOT VERIFIED dynamically | Member removal/sharing operations are present in `flutter/lib/dashboard/dashboard_repository.dart:1612-1840`; database policies were reviewed statically but not executed. |
+| Settings and logout | CONFIRMED in source | Settings load/update is in `flutter/lib/dashboard/dashboard_repository.dart:716-758`; logout is in `flutter/lib/dashboard/dashboard_screen.dart:1657-1663`. No live-session test was run. |
 
 ### Reconfirmed non-security reliability finding
 
@@ -64,6 +109,56 @@ The independently reconfirmed notification queue behavior is a reliability/priva
 - **Laravel:** The reviewed route is a standalone welcome route, not evidence of a Cyvora API boundary: `laravel/routes/web.php:5-7`. PHP was unavailable, so Laravel runtime/tests were not verified.
 - **Web OCR and iOS:** The OCR bridge and local image-processing path were reviewed, but browser integration and iOS build/device behavior were **NOT VERIFIED**: `flutter/web/ocr_bridge_v2.js`; `flutter/lib/dashboard/screenshot_text_extractor_web.dart`. Xcode was unavailable.
 
+## Complete source review
+
+The review covered relevant application and service flows in `flutter/`, Supabase function/shared code and migrations/tests in `supabase/`, Laravel routes/configuration, Android manifest/native listener and release workflow, dependency manifests, and `.github/workflows/`. Findings below are based on source and the exact local checks listed later. This review did not execute every code path or inspect sensitive `supabase/.temp` contents; repository-wide absence of all vulnerabilities is not claimed.
+
+## Authentication assessment
+
+**Status: CONFIRMED source flow; production settings and live authorization NOT VERIFIED.** The client routes by Supabase auth state, provides sign-up/sign-in, confirmation resend, password reset/recovery, and logout. The reviewed Edge Functions explicitly validate bearer tokens and MFA even though function JWT verification is disabled in configuration. The client configuration uses a publishable key; no service-role key was identified in the reviewed client config. Email confirmation policy, recovery deep links, session revocation, and live account isolation were not tested.
+
+Evidence: `flutter/lib/auth_screen.dart:308-335,347-362,389-426`; `flutter/lib/auth_gate_impl.dart:8-65,274-324`; `flutter/lib/supabase_config.dart:1-12`; `supabase/config.toml:3-7`; `supabase/functions/scam-intelligence/index.ts:1311-1342`; `supabase/functions/family-invitations/index.ts:47-83`.
+
+## Database and RLS assessment
+
+**Status: CONFIRMED static policy/function definitions; NOT VERIFIED on PostgreSQL or deployed project.** Migrations define ownership/family access policies, service-role RPC grants, atomic invitation limits, and AI request reservations. Static review did not substantiate a SQL injection or cross-user bypass in the examined paths. Since PostgreSQL and the Docker engine were unavailable, there is no runtime proof of RLS behavior, migration compatibility/order, lock behavior, concurrency safety, or actual production grants.
+
+Evidence: `supabase/migrations/202606120001_dashboard_mvp.sql:284-327,332-502`; `supabase/migrations/202611170001_atomic_family_invite_limit.sql:1-72`; `supabase/migrations/202611170004_ai_request_dedup_quota_reservation.sql:1-138`.
+
+## AI detection assessment
+
+**Status: CONFIRMED implementation/fixture behavior; real-world accuracy and provider behavior NOT VERIFIED.** The risk assessment has branches for SAFE, SUSPICIOUS, MALICIOUS, and UNKNOWN (`supabase/functions/_shared/risk-assessment.ts:114-125`), with additional verified-threat criteria at lines 237-248. Deterministic patterns and thresholds are present. A 14-item synthetic dataset includes Filipino/Taglish examples and the local run reported 7 true positives, 7 true negatives, 0 false positives, and 0 false negatives for those examples only. This is not a representative accuracy claim.
+
+Provider adapters constrain and parse responses and mark user-provided content untrusted; no tool execution or user-controlled provider routing was identified in the reviewed adapter. Request quotas and circuit/availability controls are request-count/runtime controls, not a monetary spending cap. No live provider authentication, model availability, billing, fallback, outage, or semantic prompt-injection behavior was tested.
+
+Evidence: `supabase/functions/_shared/risk-assessment.ts:114-125,237-248`; `supabase/functions/scam-intelligence/scam-patterns.ts:258-280,388-405`; `supabase/tests/scam-evaluation.test.mjs:5-72,78-118`; `supabase/functions/_shared/ai-provider-analysis.ts:171-185,587,830-924`; `supabase/migrations/202611170002_ai_provider_guardrails.sql:1-120`.
+
+## Android assessment
+
+**Status: CONFIRMED source configuration; NOT VERIFIED on physical devices/OEM variants.** The app declares a system-protected notification listener, disables cleartext traffic and backups in the manifest, and queues notification previews in app-private preferences. The inspected flow is notification-listener based and does not require becoming the default SMS application. The preview queue is count-limited; time-based expiry and application-level encryption were not found in the reviewed path. Flutter removes the selected item before analysis and does not restore it after failure (the previously documented reliability concern).
+
+No excessive SMS permission/default-app requirement was found in the reviewed manifest/service, but device permission UX, process death, background restrictions, data-at-rest behavior, revocation handling, and OEM compatibility were not exercised.
+
+Evidence: `flutter/android/app/src/main/AndroidManifest.xml:6-10,40-48`; `flutter/android/app/src/main/kotlin/com/example/cyvora_mobile/MessageNotificationListenerService.kt:10-41,56-60`; `flutter/lib/dashboard/dashboard_screen.dart:320-371,973-1003`.
+
+## Family protection assessment
+
+**Status: CONFIRMED source flows; NOT VERIFIED with live users or concurrent database requests.** Repository operations cover family creation, invitation creation/acceptance, member management, and shared settings. Edge Function authorization checks the caller and membership/ownership before privileged work; migration policies and RPC grants were reviewed statically. Invitation quotas have a server-side atomic RPC in source. No proof of deployed migrations, live cross-family isolation, expiration behavior under concurrency, or unauthorized RPC rejection was obtained because PostgreSQL/Supabase runtime access was unavailable.
+
+Evidence: `flutter/lib/dashboard/dashboard_repository.dart:1612-1840`; `supabase/functions/family-invitations/index.ts:47-83,228-236,283-286`; `supabase/migrations/202606120001_dashboard_mvp.sql:284-327,332-502`; `supabase/migrations/202611170001_atomic_family_invite_limit.sql:1-72`.
+
+## Laravel assessment
+
+**Status: NOT VERIFIED at runtime; source indicates a scaffold, not an active app API.** The reviewed Laravel route serves the default welcome view. No Flutter-to-Laravel API integration was identified in the reviewed source paths. PHP was unavailable, so Composer checks, Laravel tests, and runtime behavior were not executed.
+
+Evidence: `laravel/routes/web.php:5-7`; `laravel/composer.json:9-11`.
+
+## CI/CD assessment
+
+**Status: CONFIRMED workflow source; GitHub rules and secrets NOT VERIFIED.** CI and Android release workflows use SHA-pinned third-party actions. The release workflow is triggered by version tags or manual dispatch, validates tag syntax, requests `contents: write`, and uses signing secrets. The workflow source itself does not establish that only approved protected-branch commits can be tagged or that a protected GitHub Environment gates secret access. This is the conditional concern in F-01, not a confirmed exploit.
+
+Evidence: `.github/workflows/ci.yml:11-67`; `.github/workflows/android-release.yml:4-16,70-81,120-147,200-203`.
+
 ## Existing report reconciliation
 
 No substantive code-versus-document discrepancy was verified among:
@@ -82,6 +177,7 @@ The documented local Flutter and Node test counts were reproduced. Production mi
 | `node --experimental-strip-types --test supabase/tests/*.test.mjs` | PASS — 89 tests |
 | `flutter analyze --fatal-infos` | PASS — no issues found |
 | `Set-Location flutter; flutter test --no-pub` | PASS — 59 tests |
+| `Set-Location flutter; flutter build apk --debug --no-pub` | PASS — debug APK built; Gradle emitted a restricted-Java-native-access warning |
 | `git status --short` | Clean at the time checked by the reviewer |
 
 The scam evaluation test's 7 TP / 0 FP / 7 TN / 0 FN result is only for its local synthetic fixture and must not be interpreted as a real-world performance measurement.
@@ -95,6 +191,18 @@ The scam evaluation test's 7 TP / 0 FP / 7 TN / 0 FN result is only for its loca
 - Laravel tests, Android device/OEM lifecycle behavior, and iOS build/device behavior were not verified.
 - No dependency advisory scan was run.
 - No production systems were modified, no migrations were deployed, and no credentials or sensitive `.temp` files were accessed.
+
+## Prioritized remediation roadmap
+
+1. **HIGH / first:** Verify GitHub tag-creation restrictions, signing-secret access, and environment approvals. Add protected-tag and approved-commit checks to the Android release workflow, then test rejection using a disposable repository and dummy secrets.
+2. **LOW reliability / previously documented:** Preserve notification queue items until scan success or explicit discard; add a retry path and explicit retention/clear behavior. Cover failure-then-retry with focused Flutter tests.
+3. **Required verification gate:** Run migrations and RLS/RPC/IDOR/family isolation plus invitation/quota concurrency tests in isolated staging; confirm the deployed Edge Function revisions match the reviewed source.
+4. **AI quality/cost gate:** Use a reviewed, representative held-out Filipino/Taglish and multilingual dataset; report precision, recall, F1, false-positive rate, and class-specific results. Verify provider errors and request quotas in staging, and separately configure/measure billing caps.
+5. **Supply-chain and platform gate:** Run dependency advisory scans; exercise Android permission/background/revocation behavior on representative devices; run iOS build/device validation when Xcode is available.
+
+## Production readiness conclusion
+
+**Production readiness is NOT VERIFIED by this audit.** Local Flutter/Node tests and an Android debug build passed, but these do not establish production database policy behavior, deployed migration/function alignment, live provider reliability, GitHub release protections, Android OEM behavior, iOS readiness, or dependency advisory status. The conditional release-workflow concern should be resolved or disproven by inspecting repository rules and validating a protected environment before relying on the release pipeline. No deployment, source implementation, or production action was taken.
 
 ## Recommended verification before production
 
