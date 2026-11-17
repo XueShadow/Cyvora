@@ -66,6 +66,7 @@ internal class NotificationQueueStorage(context: Context) {
 
     fun enqueue(
         id: String,
+        notificationGroupId: String,
         title: String,
         text: String,
         packageName: String,
@@ -79,11 +80,17 @@ internal class NotificationQueueStorage(context: Context) {
         val updated = JSONArray()
         for (index in 0 until existing.length()) {
             val item = existing.optJSONObject(index) ?: continue
-            if (item.optString("id") != id) updated.put(item)
+            val existingGroupId = item.optString("notificationGroupId")
+            if (existingGroupId != notificationGroupId &&
+                item.optString("id") != notificationGroupId
+            ) {
+                updated.put(item)
+            }
         }
         updated.put(
             JSONObject()
                 .put("id", id)
+                .put("notificationGroupId", notificationGroupId)
                 .put("title", title)
                 .put("text", text)
                 .put("packageName", packageName)

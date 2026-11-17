@@ -500,8 +500,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('Disable message monitoring?'),
         content: const Text(
           'Cyvora will stop collecting notification previews and delete any '
-          'pending previews stored on this device. Existing scan history is '
-          'not affected.',
+          'pending previews stored on this device. Scans already submitted '
+          'for analysis cannot be recalled and may still finish. Existing scan '
+          'history is not affected.',
         ),
         actions: [
           TextButton(
@@ -662,7 +663,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final outcome = await _pendingNotificationQueue.scan(
         selection.notification,
-        (content) => _analyze('message', content, showFailureMessage: false),
+        (content, idempotencyKey) => _analyze(
+          'message',
+          content,
+          notificationIdempotencyKey: idempotencyKey,
+          showFailureMessage: false,
+        ),
       );
       if (!mounted) return;
       switch (outcome) {
@@ -1306,6 +1312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
     bool showFailureMessage = true,
   }) async {
     var analysisSucceeded = false;
@@ -1315,6 +1322,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         input,
         useAi: useAi,
         useUrlReputation: useUrlReputation,
+        notificationIdempotencyKey: notificationIdempotencyKey,
       );
       analysisSucceeded = true;
       if (!mounted) return true;
@@ -1324,6 +1332,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _recordScanAndMaybeAskForFeedback();
       return true;
     } on FunctionException catch (error) {
+      if (notificationIdempotencyKey != null && error.status == 410) {
+        if (mounted) {
+          _showMessage(
+            'This notification result was deleted. No new scan was created.',
+          );
+        }
+        return true;
+      }
       if (mounted && showFailureMessage) {
         _showMessage(_scanFunctionErrorMessage(error));
       }

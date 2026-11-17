@@ -953,10 +953,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Choose server analysis'), findsOneWidget);
-      expect(
-        find.textContaining('at most one'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('at most one'), findsOneWidget);
       await tester.tap(find.byKey(const Key('scan-with-ai')));
       await tester.pumpAndSettle();
 
@@ -1244,14 +1241,8 @@ void main() {
               'status': 'billing_required',
               'http_status': 402,
             },
-            {
-              'provider': 'gemini',
-              'status': 'circuit_open',
-            },
-            {
-              'provider': 'groq',
-              'status': 'provider_budget_exhausted',
-            },
+            {'provider': 'gemini', 'status': 'circuit_open'},
+            {'provider': 'groq', 'status': 'provider_budget_exhausted'},
           ],
         },
       );
@@ -2688,6 +2679,7 @@ class _FakeDashboardRepository implements DashboardRepository {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
   }) async {
     serverAnalysisRequests++;
     if (useAi) aiProviderAnalysisRequests++;

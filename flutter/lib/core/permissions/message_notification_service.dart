@@ -127,7 +127,7 @@ class PendingMessageNotificationQueue {
 
   Future<NotificationScanOutcome> scan(
     PendingMessageNotification notification,
-    Future<bool> Function(String content) analyze,
+    Future<bool> Function(String content, String idempotencyKey) analyze,
   ) async {
     final content = notification.text.isEmpty
         ? notification.title
@@ -146,7 +146,9 @@ class PendingMessageNotificationQueue {
         return NotificationScanOutcome.completed;
       }
 
-      if (!await analyze(content)) return NotificationScanOutcome.failed;
+      if (!await analyze(content, notification.id)) {
+        return NotificationScanOutcome.failed;
+      }
 
       _rememberCompleted(notification.id);
       await markCompleted(notification.id);

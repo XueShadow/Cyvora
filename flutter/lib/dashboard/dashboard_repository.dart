@@ -431,6 +431,7 @@ abstract interface class DashboardRepository {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
   });
 
   Future<String> chatSafetyAssistant(List<AssistantChatMessage> messages);
@@ -924,6 +925,7 @@ class SupabaseDashboardRepository implements DashboardRepository {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
   }) async {
     if (type != 'message' && type != 'url' && type != 'screenshot') {
       throw ArgumentError(
@@ -946,6 +948,7 @@ class SupabaseDashboardRepository implements DashboardRepository {
         'input': input,
         'use_ai': useAi,
         'use_url_reputation': useUrlReputation,
+        'notification_idempotency_key': notificationIdempotencyKey,
       },
     );
     final data = response.data;
@@ -1883,53 +1886,43 @@ class SupabaseDashboardRepository implements DashboardRepository {
     const reports = [
       (
         category: 'Phishing',
-        description:
-            'A message asked a family member to verify an account through an unfamiliar sign-in page.',
+        description: 'A message asked a family member to verify an account through an unfamiliar sign-in page.',
       ),
       (
         category: 'Fake prize',
-        description:
-            'A prize notification requested a processing fee and personal details before releasing the reward.',
+        description: 'A prize notification requested a processing fee and personal details before releasing the reward.',
       ),
       (
         category: 'Impersonation',
-        description:
-            'Someone claimed to be a relative and urgently requested a money transfer.',
+        description: 'Someone claimed to be a relative and urgently requested a money transfer.',
       ),
       (
         category: 'Bank scam',
-        description:
-            'A caller requested a one-time code and full card details to “secure” a bank account.',
+        description: 'A caller requested a one-time code and full card details to “secure” a bank account.',
       ),
       (
         category: 'Delivery scam',
-        description:
-            'A parcel notice linked to an unverified payment page to reschedule delivery.',
+        description: 'A parcel notice linked to an unverified payment page to reschedule delivery.',
       ),
       (
         category: 'Job scam',
-        description:
-            'A work-from-home offer required an upfront payment for training materials.',
+        description: 'A work-from-home offer required an upfront payment for training materials.',
       ),
       (
         category: 'Investment scam',
-        description:
-            'A social media contact promised guaranteed returns and pressured immediate payment.',
+        description: 'A social media contact promised guaranteed returns and pressured immediate payment.',
       ),
       (
         category: 'Romance scam',
-        description:
-            'An online contact asked for emergency financial help while avoiding a video call.',
+        description: 'An online contact asked for emergency financial help while avoiding a video call.',
       ),
       (
         category: 'Tech support scam',
-        description:
-            'A pop-up claimed the device was infected and directed the user to call an unknown number.',
+        description: 'A pop-up claimed the device was infected and directed the user to call an unknown number.',
       ),
       (
         category: 'Account takeover',
-        description:
-            'A message requested a password reset code that the family member did not initiate.',
+        description: 'A message requested a password reset code that the family member did not initiate.',
       ),
     ];
 
