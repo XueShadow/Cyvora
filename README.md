@@ -48,7 +48,11 @@ The push/PR checks are defined in
 [security audit](docs/CYVORA_SECURITY_AUDIT.md),
 [architecture map](docs/CYVORA_ARCHITECTURE.md),
 [test results](docs/CYVORA_TEST_RESULTS.md), and
-[security notes](docs/SECURITY.md) before release.
+[security notes](docs/SECURITY.md) before release. Current remediation
+evidence is in the [complete security audit](docs/CYVORA_COMPLETE_SECURITY_AUDIT.md),
+[remediation report](docs/CYVORA_REMEDIATION_REPORT.md),
+[staging validation plan](docs/CYVORA_STAGING_VALIDATION.md), and
+[final production checklist](docs/CYVORA_FINAL_PRODUCTION_CHECKLIST.md).
 
 ## Download an Android release
 
