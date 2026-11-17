@@ -39,6 +39,8 @@ No production systems, credentials, or database state were accessed. `supabase/.
 | Recommended remediation | Protect the release-tag namespace with a ruleset and restricted tag creation; require approval through a protected GitHub Environment before exposing signing secrets; validate the tagged commit against the approved release branch; limit `contents: write` to the publishing job/step where feasible. |
 | Required regression test | In a disposable repository, verify an unapproved-ref tag is rejected before signing secrets are available and that a valid protected-branch tag requires the configured release approval. |
 
+**Repository owner configuration required:** Create protected GitHub Environments named `android-signing` and `android-publish`, add required reviewers (and prevent self-review where supported), and allow only the default branch and stable `v*` tags. Move `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` to `android-signing` environment secrets and remove repository-level copies. Configure a branch ruleset requiring reviewed changes and preventing force-pushes, plus a tag ruleset restricting `v*` creation and updates to release managers. The publishing job creates a draft release; an owner must verify the draft artifacts/checksums and publish it manually. These GitHub settings were not changed or verified by this audit.
+
 The independently reconfirmed notification queue behavior is a reliability/privacy concern rather than a demonstrated authorization or remote-exploitation vulnerability. It was already documented in the previous audit materials and is not counted as a new security finding.
 
 ## Architecture map
@@ -192,24 +194,65 @@ The scam evaluation test's 7 TP / 0 FP / 7 TN / 0 FN result is only for its loca
 - No dependency advisory scan was run.
 - No production systems were modified, no migrations were deployed, and no credentials or sensitive `.temp` files were accessed.
 
-## Prioritized remediation roadmap
+## Remediation status
 
-1. **HIGH / first:** Verify GitHub tag-creation restrictions, signing-secret access, and environment approvals. Add protected-tag and approved-commit checks to the Android release workflow, then test rejection using a disposable repository and dummy secrets.
-2. **LOW reliability / previously documented:** Preserve notification queue items until scan success or explicit discard; add a retry path and explicit retention/clear behavior. Cover failure-then-retry with focused Flutter tests.
-3. **Required verification gate:** Run migrations and RLS/RPC/IDOR/family isolation plus invitation/quota concurrency tests in isolated staging; confirm the deployed Edge Function revisions match the reviewed source.
-4. **AI quality/cost gate:** Use a reviewed, representative held-out Filipino/Taglish and multilingual dataset; report precision, recall, F1, false-positive rate, and class-specific results. Verify provider errors and request quotas in staging, and separately configure/measure billing caps.
-5. **Supply-chain and platform gate:** Run dependency advisory scans; exercise Android permission/background/revocation behavior on representative devices; run iOS build/device validation when Xcode is available.
+The original review above was read-only. The following separately authorized
+remediation has since been applied in the current, uncommitted workspace:
+
+| Area | Change and current verification |
+|---|---|
+| Android release trust boundary | Release-ref validation checks stable tags and ancestry on the default branch. Validation, signing, and publishing are separate least-privilege jobs; signing/publishing use protected GitHub Environments; publishing creates a draft. Seven validator tests pass. GitHub branch/tag rules, reviewers, and secret placement still require owner configuration and were not inspected. |
+| Notification queue reliability | Items remain queued until analysis succeeds; failures remain retryable; concurrent duplicate scans are suppressed; successful cleanup is not re-analyzed after a cleanup failure. Queue tests pass. |
+| Notification privacy | Notification previews are encrypted with an Android Keystore AES/GCM key, old plaintext queue entries are migrated on read, retention is configurable to 1/7/30 days (default 7), expiration is scheduled, consent defaults to off, and users can delete queued previews. `allowBackup` is false in the Android manifest. Device/OEM and reboot/force-stop behavior remain unverified. |
+| Supabase staging tests | Added `supabase/tests/security_boundaries.test.sql` for local pgTAP checks of scan RLS, family isolation, unauthorized RPC access, expired invites, and quota reservation/exhaustion. The SQL test was not run because Supabase CLI, PostgreSQL, and Docker were unavailable. Existing Node migration-contract tests cover the invitation lock and AI control declarations, but do not prove database runtime behavior or true concurrent requests. |
+| AI provider controls | Existing mocked provider tests and migration-contract tests passed as part of the 89-test Node suite. No credentials were read and no live provider calls or billing checks were made. Request quotas do not cap provider spend. |
+| Dependencies/platforms | Android debug build and Flutter analysis/tests passed. No dependency advisory scan completed: `dart pub audit` is unavailable in this Dart SDK; `npm` has no lockfile here; PHP/Composer are unavailable. No device/OEM, Laravel, Deno, or iOS runtime validation was performed. |
+
+### Current local validation
+
+| Check | Result |
+|---|---|
+| Flutter analysis | PASS — no issues |
+| Flutter tests | PASS — 64 tests |
+| Supabase Node tests | PASS — 89 tests |
+| Android release-ref policy tests | PASS — 7 tests |
+| Android debug build | PASS — APK built |
+| PostgreSQL/pgTAP staging tests | NOT RUN — local database tooling unavailable |
+| Dependency advisory scans | NOT RUN — required audit tooling/lockfiles unavailable |
+| Live providers, production, devices, Laravel, iOS | NOT TESTED |
+
+## Updated remediation roadmap
+
+1. Configure and verify GitHub protected branch/tag rules, environment
+   reviewers, and signing secrets; test release rejection in a disposable
+   repository with dummy credentials.
+2. Run the new pgTAP suite and add real multi-connection invitation/quota
+   concurrency tests against a disposable local or isolated staging database.
+3. Verify deployed migrations and matching Edge Function revisions only in
+   isolated staging, then test actual RLS/RPC behavior with separate accounts.
+4. Configure provider-side spend limits and verify provider availability,
+   billing behavior, and data retention in staging. Request quotas alone are
+   not a monetary cap. Consider redacting personal data and OTPs before
+   optional external AI processing; notification content is not yet locally
+   redacted before a user-requested scan.
+5. Test Android permission revocation, process death, key-loss/error handling,
+   queue expiry, and deletion on representative devices. Run dependency
+   advisory scans when supported tooling is available; validate Laravel and
+   iOS on their supported platforms.
+6. Measure classification performance on a reviewed, representative,
+   held-out multilingual/Filipino dataset before making real-world accuracy
+   claims.
 
 ## Production readiness conclusion
 
-**Production readiness is NOT VERIFIED by this audit.** Local Flutter/Node tests and an Android debug build passed, but these do not establish production database policy behavior, deployed migration/function alignment, live provider reliability, GitHub release protections, Android OEM behavior, iOS readiness, or dependency advisory status. The conditional release-workflow concern should be resolved or disproven by inspecting repository rules and validating a protected environment before relying on the release pipeline. No deployment, source implementation, or production action was taken.
+**Production readiness remains NOT VERIFIED.** The current local changes pass
+the Flutter, Node, Python release-policy, and Android debug-build checks
+listed above. The SQL suite is prepared but not executed. These results do
+not establish deployed migration/function alignment, runtime RLS or RPC
+isolation, real concurrent quota behavior, GitHub owner settings, provider
+spend/retention, Android OEM lifecycle behavior, or Laravel/iOS readiness.
+No production systems were modified and no deployment was performed.
 
-## Recommended verification before production
-
-1. In an isolated staging Supabase project, apply migrations through the approved deployment process and run unauthorized RPC, RLS isolation, concurrent invitation, reservation, cooldown, and expired-lease tests.
-2. Deploy/verify the matching Edge Function revisions in staging and test provider authentication, timeout/rate-limit handling, malformed responses, fallback accounting, and circuit-breaker recovery without using production secrets.
-3. Run supported dependency advisory scans for Flutter/Dart, Laravel/PHP, and JavaScript/TypeScript dependencies.
-4. On representative Android devices, test notification permission revocation, background process death, scan failure recovery, queue retention, and user-visible data deletion behavior.
-5. Evaluate scam classification on a reviewed, representative, held-out dataset and report class-specific precision, recall, F1, and false-positive rate before making accuracy claims.
-
-**Disposition:** Audit-only report complete. No implementation or production action was taken; approval is required before major changes.
+**Disposition:** The original audit is complete; remediation is local and
+uncommitted. Manual owner settings and isolated staging/device validation
+remain release gates.

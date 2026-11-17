@@ -6,10 +6,12 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import org.json.JSONArray
-import org.json.JSONObject
 
 class MainActivity : FlutterActivity() {
+    private val notificationQueueStorage by lazy {
+        NotificationQueueStorage(applicationContext)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -24,64 +26,72 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "getPendingMessageNotifications" -> {
-                        result.success(readPendingNotifications())
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.pendingNotifications()
+                        }
                     }
                     "removePendingMessageNotification" -> {
-                        removePendingNotification(call.argument<String>("id"))
-                        result.success(null)
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.remove(call.argument<String>("id"))
+                            null
+                        }
+                    }
+                    "clearPendingMessageNotifications" -> {
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.clear()
+                            null
+                        }
+                    }
+                    "getMessageMonitoringConsent" -> {
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.isMonitoringConsentGranted()
+                        }
+                    }
+                    "setMessageMonitoringConsent" -> {
+                        runNotificationStorageOperation(result) {
+                            val granted = call.argument<Boolean>("granted")
+                                ?: throw IllegalArgumentException("A consent value is required.")
+                            notificationQueueStorage.setMonitoringConsentGranted(granted)
+                            null
+                        }
+                    }
+                    "getNotificationRetentionDays" -> {
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.retentionDays()
+                        }
+                    }
+                    "setNotificationRetentionDays" -> {
+                        runNotificationStorageOperation(result) {
+                            val days = call.argument<Int>("days")
+                                ?: throw IllegalArgumentException("A retention period is required.")
+                            notificationQueueStorage.setRetentionDays(days)
+                            null
+                        }
                     }
                     else -> result.notImplemented()
                 }
             }
     }
 
-    private fun readPendingNotifications(): List<Map<String, Any>> {
-        val preferences = getSharedPreferences(
-            MessageNotificationListenerService.PREFERENCES_NAME,
-            MODE_PRIVATE,
-        )
-        val queue = runCatching {
-            JSONArray(
-                preferences.getString(
-                    MessageNotificationListenerService.PENDING_KEY,
-                    "[]",
-                ),
+    private fun runNotificationStorageOperation(
+        result: MethodChannel.Result,
+        operation: () -> Any?,
+    ) {
+        try {
+            result.success(operation())
+        } catch (error: NotificationStorageException) {
+            result.error(
+                "notification_storage_error",
+                error.message ?: "Secure notification storage is unavailable.",
+                null,
             )
-        }.getOrDefault(JSONArray())
-        return (0 until queue.length()).mapNotNull { index ->
-            val item = queue.optJSONObject(index) ?: return@mapNotNull null
-            mapOf(
-                "id" to item.optString("id"),
-                "title" to item.optString("title"),
-                "text" to item.optString("text"),
-                "packageName" to item.optString("packageName"),
-                "receivedAt" to item.optLong("receivedAt"),
+        } catch (error: IllegalArgumentException) {
+            result.error(
+                "invalid_notification_setting",
+                error.message ?: "The notification setting is invalid.",
+                null,
             )
         }
-    }
-
-    private fun removePendingNotification(id: String?) {
-        if (id == null) return
-        val preferences = getSharedPreferences(
-            MessageNotificationListenerService.PREFERENCES_NAME,
-            MODE_PRIVATE,
-        )
-        val queue = runCatching {
-            JSONArray(
-                preferences.getString(
-                    MessageNotificationListenerService.PENDING_KEY,
-                    "[]",
-                ),
-            )
-        }.getOrDefault(JSONArray())
-        val remaining = JSONArray()
-        for (index in 0 until queue.length()) {
-            val item = queue.optJSONObject(index)
-            if (item != null && item.optString("id") != id) remaining.put(item)
-        }
-        preferences.edit()
-            .putString(MessageNotificationListenerService.PENDING_KEY, remaining.toString())
-            .apply()
     }
 
     companion object {

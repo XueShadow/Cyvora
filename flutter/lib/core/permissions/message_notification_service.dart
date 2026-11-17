@@ -46,7 +46,10 @@ class MessageNotificationService {
     final values = await _channel.invokeMethod<List<Object?>>(
       'getPendingMessageNotifications',
     );
-    return (values ?? const <Object?>[])
+    if (values == null) {
+      throw StateError('Pending notifications were not returned by Android.');
+    }
+    return values
         .whereType<Map<Object?, Object?>>()
         .map(PendingMessageNotification.fromMap)
         .toList(growable: false);
@@ -57,5 +60,96 @@ class MessageNotificationService {
       'removePendingMessageNotification',
       <String, Object?>{'id': id},
     );
+  }
+
+  Future<void> clearPending() {
+    return _channel.invokeMethod<void>('clearPendingMessageNotifications');
+  }
+
+  Future<int> retentionDays() async {
+    final value = await _channel.invokeMethod<int>(
+      'getNotificationRetentionDays',
+    );
+    if (value == null) {
+      throw StateError('Notification retention was not returned by Android.');
+    }
+    return value;
+  }
+
+  Future<void> setRetentionDays(int days) {
+    return _channel.invokeMethod<void>(
+      'setNotificationRetentionDays',
+      <String, Object?>{'days': days},
+    );
+  }
+
+  Future<bool> hasMonitoringConsent() async {
+    final value = await _channel.invokeMethod<bool>(
+      'getMessageMonitoringConsent',
+    );
+    if (value == null) {
+      throw StateError(
+        'Message monitoring consent was not returned by Android.',
+      );
+    }
+    return value;
+  }
+
+  Future<void> setMonitoringConsent(bool granted) {
+    return _channel.invokeMethod<void>(
+      'setMessageMonitoringConsent',
+      <String, Object?>{'granted': granted},
+    );
+  }
+}
+
+enum NotificationScanOutcome { completed, failed, alreadyProcessing, noContent }
+
+class PendingMessageNotificationQueue {
+  static const _maxRememberedCompletedIds = 50;
+
+  PendingMessageNotificationQueue({required this.remove});
+
+  final Future<void> Function(String id) remove;
+  final Set<String> _processingIds = {};
+  final Set<String> _completedIds = {};
+
+  Future<NotificationScanOutcome> scan(
+    PendingMessageNotification notification,
+    Future<bool> Function(String content) analyze,
+  ) async {
+    final content = notification.text.isEmpty
+        ? notification.title
+        : notification.text;
+    if (notification.id.isEmpty || content.trim().isEmpty) {
+      return NotificationScanOutcome.noContent;
+    }
+    if (!_processingIds.add(notification.id)) {
+      return NotificationScanOutcome.alreadyProcessing;
+    }
+
+    try {
+      if (_completedIds.contains(notification.id)) {
+        await remove(notification.id);
+        return NotificationScanOutcome.completed;
+      }
+
+      if (!await analyze(content)) return NotificationScanOutcome.failed;
+
+      _rememberCompleted(notification.id);
+      await remove(notification.id);
+      return NotificationScanOutcome.completed;
+    } finally {
+      _processingIds.remove(notification.id);
+    }
+  }
+
+  void _rememberCompleted(String id) {
+    _completedIds
+      ..remove(id)
+      ..add(id);
+    if (_completedIds.length > _maxRememberedCompletedIds) {
+      _completedIds.remove(_completedIds.first);
+    }
   }
 }

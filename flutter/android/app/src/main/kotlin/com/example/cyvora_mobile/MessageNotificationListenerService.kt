@@ -3,12 +3,25 @@ package com.example.cyvora_mobile
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import org.json.JSONArray
-import org.json.JSONObject
+import android.util.Log
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 class MessageNotificationListenerService : NotificationListenerService() {
+    private val queueStorage by lazy { NotificationQueueStorage(this) }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        try {
+            queueStorage.purgeExpiredAndSchedule()
+        } catch (_: NotificationStorageException) {
+            Log.e(TAG, "Could not maintain encrypted notification storage.")
+        }
+    }
+
     override fun onNotificationPosted(statusBarNotification: StatusBarNotification) {
         if (statusBarNotification.packageName == packageName) return
+        if (!queueStorage.isMonitoringConsentGranted()) return
 
         val notification = statusBarNotification.notification
         if (notification.flags and Notification.FLAG_ONGOING_EVENT != 0 ||
@@ -25,20 +38,20 @@ class MessageNotificationListenerService : NotificationListenerService() {
             )?.toString()?.trim().orEmpty()
         if (title.isEmpty() && text.isEmpty() || looksPromotional(title, text)) return
 
-        val preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
-        val queue = runCatching {
-            JSONArray(preferences.getString(PENDING_KEY, "[]"))
-        }.getOrDefault(JSONArray())
-        queue.put(
-            JSONObject()
-                .put("id", "${statusBarNotification.postTime}-${statusBarNotification.key.hashCode()}")
-                .put("title", title)
-                .put("text", text)
-                .put("packageName", statusBarNotification.packageName)
-                .put("receivedAt", statusBarNotification.postTime)
-        )
-        while (queue.length() > MAX_QUEUE_SIZE) queue.remove(0)
-        preferences.edit().putString(PENDING_KEY, queue.toString()).apply()
+        val id = UUID.nameUUIDFromBytes(
+            statusBarNotification.key.toByteArray(StandardCharsets.UTF_8),
+        ).toString()
+        try {
+            queueStorage.enqueue(
+                id = id,
+                title = title,
+                text = text,
+                packageName = statusBarNotification.packageName,
+                receivedAt = statusBarNotification.postTime,
+            )
+        } catch (_: NotificationStorageException) {
+            Log.e(TAG, "Could not securely store a notification preview.")
+        }
     }
 
     private fun looksPromotional(title: String, text: String): Boolean {
@@ -55,8 +68,6 @@ class MessageNotificationListenerService : NotificationListenerService() {
     }
 
     companion object {
-        const val PREFERENCES_NAME = "cyvora_notification_scanning"
-        const val PENDING_KEY = "pending_messages"
-        const val MAX_QUEUE_SIZE = 50
+        private const val TAG = "CyvoraNotificationQueue"
     }
 }

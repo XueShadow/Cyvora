@@ -1,4 +1,28 @@
-# Cyvora baseline test results
+# Cyvora test results
+
+## Current remediation verification
+
+The following checks ran after the local Android-release and notification
+privacy/reliability changes. They are workspace results, not production
+verification.
+
+| Check | Result | Notes |
+|---|---|---|
+| `flutter analyze --fatal-infos` | **PASS** | No issues found. |
+| `flutter test --no-pub` | **PASS — 64 tests** | Includes queue retry/duplicate handling and notification privacy MethodChannel coverage. |
+| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | **PASS — 89 tests** | Mocked provider flows and static migration-contract assertions; not PostgreSQL integration. |
+| Android release-ref policy tests | **PASS — 7 tests** | `python -m unittest test_validate_android_release_ref` from `flutter/scripts`. |
+| `flutter build apk --debug --no-pub` | **PASS** | Built `flutter/build/app/outputs/flutter-apk/app-debug.apk`; Gradle and Android SDK XML warnings were emitted. |
+| `supabase/tests/security_boundaries.test.sql` | **PREPARED, NOT RUN** | Supabase CLI, PostgreSQL, and Docker were unavailable. |
+| `dart pub audit` | **UNAVAILABLE** | The installed Dart SDK has no `pub audit` subcommand. |
+| PHP/Composer audit and Laravel tests | **BLOCKED** | PHP and Composer are not installed/on `PATH`. |
+| Live provider, deployed database, device/OEM, and iOS validation | **NOT TESTED** | No credentials, production systems, or devices were used. |
+
+An attempted Python test import from the repository root failed because the
+script directory was not on the module path. Rerunning from `flutter/scripts`
+passed all seven tests; this was a command invocation issue, not a test failure.
+
+## Original baseline
 
 **Run date:** 2026-11-17
 **Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`

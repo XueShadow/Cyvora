@@ -30,6 +30,16 @@ This is not a penetration test or a claim of production certification.
   completion accounting. Request counts do not limit dollar spend.
 - Startup diagnostics log fixed phase labels and an exception type, not the
   exception message, token, URL, or user content.
+- Android notification previews are collected only after explicit local
+  consent and Android notification-listener access. The queue uses AES/GCM
+  encryption backed by Android Keystore, migrates existing plaintext queue
+  entries when read, defaults to seven-day expiry, supports 1/7/30-day
+  retention, and can be cleared by the user. The Android manifest disables
+  backup. A queued notification is removed only after analysis succeeds.
+- Android release workflow source validates stable tags against the default
+  branch, isolates build/sign/publish jobs with least-privilege permissions,
+  and gates signing/publishing on named GitHub Environments. Publishing
+  creates a draft release for owner review.
 
 The Supabase production migration ledger was inspected on 2026-11-17 and
 showed `202611150005_mfa_enforcement` as its latest entry. Migrations
@@ -59,10 +69,21 @@ executed, and deployed Edge Function revisions remain unverified.
   selected third parties. Provider retention, plan availability, and pricing
   were not independently verified. `urlscan.io` may retain submitted URLs
   according to provider policy.
-- **Local notification data — PARTIALLY IMPLEMENTED:** the opt-in Android
-  notification listener stores notification text and package metadata in
-  app-private SharedPreferences. Application-layer encryption and a tested
-  retention policy are not implemented.
+- **Local notification data — IMPLEMENTED IN SOURCE; DEVICE BEHAVIOR NOT
+  VERIFIED:** previews are encrypted in app-private storage with a
+  non-exportable Android Keystore key. Existing plaintext queue entries are
+  migrated on read. If the Keystore key becomes unavailable, preview access
+  fails rather than falling back to plaintext. Retention and deletion controls
+  are implemented, but exact expiry timing across force-stop/reboot, key-loss
+  recovery, OEM lifecycle behavior, and permission revocation have not been
+  tested on devices. Disabling consent stops new collection but does not
+  automatically erase queued previews; the user can delete them separately.
+- **Notification content redaction — NOT IMPLEMENTED:** notifications are
+  manually selected before analysis and optional AI processing is separately
+  selected. The selected text is not currently redacted locally for names,
+  phone numbers, account identifiers, or OTP values before the analysis
+  request. Users should avoid scanning messages containing credentials or
+  one-time codes until redaction is implemented.
 - **Android/OEM crash — NOT TESTED:** no redacted Huawei HarmonyOS crash log
   was supplied, so the launch failure's root cause is unknown.
 - **Platform identity — REQUIRES MANUAL ACTION:** iOS bundle ID
@@ -82,7 +103,7 @@ executed, and deployed Edge Function revisions remain unverified.
 - The repository contains migrations 001–004 and their Edge Function
   integration. The production dashboard ledger ends at `202611150005`;
   migrations `202611150006` and `202611170001`–`202611170004` are not recorded
-  as applied. The local Node suite passes 89 tests and Flutter tests pass 59;
+  as applied. The local Node suite passes 89 tests and Flutter tests pass 64;
   these do not replace database, provider, or device testing.
 - Until the atomic invitation-quota migration is applied to the intended
   environment together with the matching Edge Function, the quota protection
@@ -90,6 +111,18 @@ executed, and deployed Edge Function revisions remain unverified.
 - Run backend unit tests and Flutter tests without production credentials.
   Validate RLS and family account isolation against an isolated database with
   multiple test accounts.
+- `supabase/tests/security_boundaries.test.sql` prepares pgTAP checks for
+  scan RLS, family isolation, foreign-account writes, unauthorized RPC
+  execution, expired invitations, and AI quota reservation/exhaustion. Run it
+  only with the local Supabase test database (`supabase test db`); it was not
+  executed here because Supabase CLI, PostgreSQL, and Docker were unavailable.
+  Existing Node tests statically check migration contracts but cannot prove
+  database concurrency or deployed policy behavior.
+- Android release Environments named `android-signing` and `android-publish`
+  must be created with required reviewers. Move signing secrets into
+  `android-signing`, restrict stable `v*` tag creation/updates, and require
+  reviewed changes on the default branch. These GitHub settings were not
+  changed or verified. The owner must review and publish draft releases.
 - Review redacted device logs before sharing them; remove tokens, notification
   content, addresses, email addresses, and other personal data.
 

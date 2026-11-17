@@ -38,20 +38,37 @@ vulnerabilities in the reviewed workspace. This is not a penetration test.
 The [security audit](CYVORA_SECURITY_AUDIT.md) lists controls and unverified
 areas.
 
+## Current remediation update
+
+The local workspace now includes the approved Android release-workflow
+hardening, notification queue retry behavior, and encrypted notification
+storage with explicit consent, configurable 1/7/30-day retention, expiry, and
+user deletion. A local pgTAP suite was prepared for RLS, family isolation,
+unauthorized RPC, expired invitations, and AI quota behavior, but it was not
+run because Supabase CLI, PostgreSQL, and Docker were unavailable. No
+production database, GitHub settings, credentials, or live providers were
+changed or accessed.
+
+Latest local results: Flutter analysis passed; Flutter tests passed (64);
+Supabase Node tests passed (89); Android release-ref policy tests passed (7);
+and a debug APK built successfully. PHP/Composer, Deno, iOS tooling, device
+validation, and supported dependency advisory scanners were unavailable or
+not configured. See [test results](CYVORA_TEST_RESULTS.md).
+
 ## Architecture and implementation status
 
 | Area | Status | Evidence and remaining work |
 |---|---|---|
-| Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Flutter analysis and 59 widget tests passed. |
+| Flutter client and Supabase Auth | IMPLEMENTED; VERIFIED locally | Auth/MFA gate, dashboard, scan, family, alert, and settings flows exist. Current workspace analysis and 64 tests pass (the prior 59-test baseline remains recorded below). |
 | Backend boundary | IMPLEMENTED | `DashboardRepository` delegates Supabase reads and Edge Function requests; deterministic analysis is server-side. |
 | Supabase production schema | PARTIALLY VERIFIED; DEPLOYMENT REQUIRED | Ledger ends at `202611150005_mfa_enforcement`; `202611150006` and `202611170001`–`202611170004` are not recorded. |
 | Edge Function deployment | NOT TESTED | Current deployed revisions were not independently inspected. Source presence does not prove deployment. |
 | Family Protection | PARTIALLY IMPLEMENTED; NOT TESTED live | Invite/revoke/accept and membership UI/code exist. Cross-family RLS, concurrent invitation quotas, and lifecycle need isolated database tests. Migration `202611170001` is not recorded in production. |
 | AI guardrails | IMPLEMENTED in repository; NOT TESTED against PostgreSQL/live providers | Daily request limits, deduplication/cooldowns, leases, and circuit breaker are in source/migrations. Production migrations `202611170002`–`004` are absent from the observed ledger. Limits count requests, not provider spend. |
 | Scam detection | PARTIALLY IMPLEMENTED; VERIFIED on a small fixture | Deterministic modules, evidence and risk schema, and optional AI/reputation integrations exist. The 14 synthetic examples are regression checks, not a real-world accuracy estimate. |
-| Android notification monitoring | PARTIALLY IMPLEMENTED | Native notification listener queues previews and Flutter offers manual review; automatic background analysis and device/OEM verification are absent. |
-| Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally. |
-| Android release/signing | PARTIALLY VERIFIED; REQUIRES MANUAL ACTION | Production identity must be confirmed before a release. This audit did not build a new signed release or test install/update behavior. |
+| Android notification monitoring | PARTIALLY IMPLEMENTED; DEVICE TESTING REQUIRED | Previews are opt-in, Keystore-encrypted, expire after a configurable retention period, and can be deleted. Manual review retains failed items for retry; device/OEM, permission-revocation, force-stop, and reboot behavior are unverified. |
+| Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally after the notification changes. |
+| Android release/signing | SOURCE HARDENED; OWNER CONFIGURATION REQUIRED | Stable-tag/default-branch checks, least-privilege jobs, gated signing/publishing environments, and draft publishing are implemented. GitHub protected rules, reviewers, secret placement, and signed release behavior were not verified. |
 | iOS | BLOCKED for build/runtime verification | Bundle ID is `com.example.cyvoraMobile`, different from Android `com.example.cyvora_mobile`; no ID was changed. Xcode, signing, provisioning, privacy declarations, and device test were unavailable on Windows. |
 | Laravel | PARTIALLY IMPLEMENTED | Laravel 13 scaffold exposes a default welcome route and example tests; no Cyvora integration contract was identified. Confirm its intended role. |
 | CI | VERIFIED | GitHub Actions run 44035823882 succeeded for the inspected commit. CI does not execute PostgreSQL/RLS integration, live providers, iOS, or device notification tests. |
@@ -74,6 +91,18 @@ areas.
 
 See [detailed test results](CYVORA_TEST_RESULTS.md).
 
+## Current remediation checks
+
+| Check | Result |
+|---|---|
+| Flutter analysis | PASS — no issues |
+| Flutter tests | PASS — 64 |
+| Supabase Node tests | PASS — 89 |
+| Release-ref validator tests | PASS — 7 |
+| Android debug build | PASS — APK built |
+| `supabase/tests/security_boundaries.test.sql` | PREPARED, NOT RUN — local database tooling unavailable |
+| Dependency advisory scans | NOT RUN — Dart audit command unavailable; PHP/Composer unavailable; no Laravel npm lockfile |
+
 ## Prioritized release blockers
 
 1. **Database/schema alignment:** validate pending migrations in isolated
@@ -86,9 +115,10 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
 3. **Confirm app identities:** owner must approve canonical Android/iOS
    identifiers and release/signing history. Do not change them before
    approval.
-4. **Notification privacy and reliability:** choose retention/encryption
-   requirements, make scanning behavior match the user-consent model, and
-   test queue recovery and Android permission revocation on devices.
+4. **Notification privacy and reliability:** test encrypted storage and
+   retention on devices, including permission revocation, key recovery,
+   process death, expiry, and deletion. Implement local redaction for
+   personally identifying data/OTPs before optional external provider calls.
 5. **Scam evaluation:** expand the reviewed Filipino/Taglish and English
    corpus, measure held-out precision/recall/F1/false positives, and establish
    review/release gates.
@@ -108,6 +138,10 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
   deployed function revisions. Do not infer deployment from Git presence.
 - Obtain owner approval and a reviewed deployment plan before production
   migrations, Edge Function deployments, identity changes, or signing changes.
+- Configure GitHub Environments `android-signing` and `android-publish` with
+  required reviewers, move signing secrets to `android-signing`, and protect
+  the default branch and stable `v*` tags. The source workflow cannot enforce
+  missing repository-level rules by itself.
 - Keep provider/service-role keys in server-side secret storage. No secrets
   were read or changed during this audit.
 - Obtain redacted HarmonyOS crash logs before diagnosing the reported startup

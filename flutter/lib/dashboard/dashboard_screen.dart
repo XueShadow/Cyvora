@@ -17,10 +17,15 @@ import 'screenshot_text_extractor.dart';
 import 'trusted_intelligence_page.dart';
 
 typedef _ScanAnalysisOptions = ({bool useAi, bool useUrlReputation});
+typedef _NotificationReviewSelection = ({
+  PendingMessageNotification notification,
+  bool shouldScan,
+});
 
 const _dashboardInitialLoadTimeout = Duration(seconds: 20);
 const _dashboardTabTransitionDuration = Duration(milliseconds: 260);
 const _dashboardStatisticTransitionDuration = Duration(milliseconds: 180);
+const _notificationRetentionOptions = [1, 7, 30];
 
 class _AlertFeed {
   const _AlertFeed({
@@ -144,6 +149,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const _feedbackScanThreshold = 5;
   static const _permissionService = PermissionService();
   static const _messageNotificationService = MessageNotificationService();
+  late final _pendingNotificationQueue = PendingMessageNotificationQueue(
+    remove: _messageNotificationService.remove,
+  );
 
   int _selectedTab = 0;
   int? _programmaticPageTarget;
@@ -196,108 +204,245 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final supportsAndroidNotifications =
         _permissionService.supportsAndroidNotifications;
     final notificationStatus = await _permissionService.notificationStatus();
-    final messageAccessEnabled = supportsAndroidNotifications &&
-        await _messageNotificationService.isEnabled();
-    final pendingMessages = supportsAndroidNotifications
-        ? await _messageNotificationService.pending()
-        : const <PendingMessageNotification>[];
+    var messageAccessEnabled = false;
+    var monitoringConsent = false;
+    var retentionDays = 7;
+    var pendingMessages = const <PendingMessageNotification>[];
+    if (supportsAndroidNotifications) {
+      try {
+        messageAccessEnabled = await _messageNotificationService.isEnabled();
+        monitoringConsent = await _messageNotificationService
+            .hasMonitoringConsent();
+        retentionDays = await _messageNotificationService.retentionDays();
+        pendingMessages = await _messageNotificationService.pending();
+      } on PlatformException {
+        if (mounted) {
+          _showMessage(
+            'Secure notification settings are unavailable. '
+            'No pending message data was changed.',
+          );
+        }
+        return;
+      } on StateError {
+        if (mounted) _showMessage('Notification settings could not be loaded.');
+        return;
+      }
+    }
     if (!mounted) return;
 
+    var selectedRetentionDays = retentionDays;
     final allowNotifications = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Permission control'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choose which Android permission Cyvora can use. '
-              'You can change this later in Android settings.',
-            ),
-            SizedBox(height: 16),
-            _PermissionRow(
-              icon: Icons.notifications_none_rounded,
-              title: 'Family notifications',
-              description:
-                  'Receive alerts when a shared family report needs '
-                  'attention. Android notification access is optional.',
-            ),
-            if (supportsAndroidNotifications) ...[
-              const SizedBox(height: 10),
-              _PermissionRow(
-                icon: Icons.message_outlined,
-                title: 'Message notification scanning',
-                description: messageAccessEnabled
-                    ? 'Enabled. Messages stay on this device until you review them.'
-                    : 'Disabled. Cyvora will never read messages without your approval.',
-              ),
-              TextButton.icon(
-                onPressed: _messageNotificationService.openSettings,
-                icon: const Icon(Icons.settings_outlined),
-                label: Text(
-                  messageAccessEnabled
-                      ? 'Manage notification access'
-                      : 'Enable message scanning',
+      builder: (context) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Permission control'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Choose which Android permission Cyvora can use. '
+                  'You can change this later in Android settings.',
                 ),
-              ),
-            ],
-            SizedBox(height: 10),
-            const Text(
-              'Photos and screenshots use the system picker and do not '
-              'require broad storage access. Web and iOS builds use their '
-              'platform notification settings.',
-              style: TextStyle(fontSize: 12),
+                const SizedBox(height: 16),
+                _PermissionRow(
+                  icon: Icons.notifications_none_rounded,
+                  title: 'Family notifications',
+                  description:
+                      'Receive alerts when a shared family report needs '
+                      'attention. Android notification access is optional.',
+                ),
+                if (supportsAndroidNotifications) ...[
+                  const SizedBox(height: 10),
+                  _PermissionRow(
+                    icon: Icons.message_outlined,
+                    title: 'Message notification scanning',
+                    description: messageAccessEnabled && monitoringConsent
+                        ? 'On with your consent. Previews are encrypted on this '
+                              'device and expire after $selectedRetentionDays days. '
+                              'Only messages you select are sent for analysis.'
+                        : messageAccessEnabled
+                        ? 'Android access is enabled, but Cyvora monitoring is '
+                              'off until you consent.'
+                        : 'Off. Cyvora does not collect message notifications '
+                              'without your consent and Android access.',
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Expanded(child: Text('Keep previews for')),
+                      DropdownButton<int>(
+                        key: const Key('notification-retention-days'),
+                        value: selectedRetentionDays,
+                        items: _notificationRetentionOptions
+                            .map(
+                              (days) => DropdownMenuItem<int>(
+                                value: days,
+                                child: Text(
+                                  '$days ${days == 1 ? 'day' : 'days'}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (days) async {
+                          if (days == null) return;
+                          try {
+                            await _messageNotificationService.setRetentionDays(
+                              days,
+                            );
+                            final updatedPending =
+                                await _messageNotificationService.pending();
+                            if (dialogContext.mounted) {
+                              setDialogState(() {
+                                selectedRetentionDays = days;
+                                pendingMessages = updatedPending;
+                              });
+                            }
+                          } on PlatformException {
+                            if (dialogContext.mounted) {
+                              _showMessage(
+                                'Could not update notification retention.',
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const Text(
+                    'Pending previews are encrypted locally, removed '
+                    'automatically after this period, and can be deleted sooner.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      if (!monitoringConsent) {
+                        final consent = await _confirmMessageMonitoringConsent(
+                          selectedRetentionDays,
+                        );
+                        if (consent != true || !dialogContext.mounted) return;
+                        try {
+                          await _messageNotificationService
+                              .setMonitoringConsent(true);
+                          setDialogState(() => monitoringConsent = true);
+                        } on PlatformException {
+                          if (dialogContext.mounted) {
+                            _showMessage(
+                              'Could not save your monitoring consent.',
+                            );
+                          }
+                          return;
+                        }
+                      }
+                      try {
+                        await _messageNotificationService.openSettings();
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop(false);
+                        }
+                      } on PlatformException {
+                        if (dialogContext.mounted) {
+                          _showMessage(
+                            'Android notification access settings could not be opened.',
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.settings_outlined),
+                    label: Text(
+                      monitoringConsent
+                          ? 'Manage notification access'
+                          : 'Review consent and enable',
+                    ),
+                  ),
+                  if (monitoringConsent)
+                    TextButton(
+                      onPressed: () async {
+                        try {
+                          await _messageNotificationService
+                              .setMonitoringConsent(false);
+                          if (dialogContext.mounted) {
+                            setDialogState(() => monitoringConsent = false);
+                          }
+                        } on PlatformException {
+                          if (dialogContext.mounted) {
+                            _showMessage(
+                              'Could not disable message monitoring.',
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Disable Cyvora monitoring'),
+                    ),
+                ],
+                const SizedBox(height: 10),
+                const Text(
+                  'Photos and screenshots use the system picker and do not '
+                  'require broad storage access. Web and iOS builds use their '
+                  'platform notification settings.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                if (!supportsAndroidNotifications) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Android notification permission is not available on this '
+                    'platform build. Family alerts remain available in the app.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ],
             ),
-            if (!supportsAndroidNotifications) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'Android notification permission is not available on this '
-                'platform build. Family alerts remain available in the app.',
-                style: TextStyle(fontSize: 12),
+          ),
+          actions: [
+            if (notificationStatus?.isPermanentlyDenied == true)
+              TextButton(
+                onPressed: () async {
+                  await _permissionService.openSettings();
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(false);
+                  }
+                },
+                child: const Text('Open settings'),
               ),
-            ],
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                notificationStatus?.isGranted == true
+                    ? 'Keep enabled'
+                    : 'Deny all',
+              ),
+            ),
+            if (pendingMessages.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                  unawaited(_reviewPendingMessageNotifications());
+                },
+                child: Text('Review messages (${pendingMessages.length})'),
+              ),
+            if (pendingMessages.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                  unawaited(_confirmClearPendingNotifications());
+                },
+                child: const Text('Clear pending'),
+              ),
+            FilledButton(
+              onPressed:
+                  supportsAndroidNotifications &&
+                      notificationStatus?.isGranted != true &&
+                      notificationStatus?.isPermanentlyDenied != true
+                  ? () => Navigator.of(dialogContext).pop(true)
+                  : null,
+              child: Text(
+                notificationStatus?.isGranted == true
+                    ? 'Already enabled'
+                    : 'Allow notifications',
+              ),
+            ),
           ],
         ),
-        actions: [
-          if (notificationStatus?.isPermanentlyDenied == true)
-            TextButton(
-              onPressed: () async {
-                await _permissionService.openSettings();
-                if (context.mounted) Navigator.of(context).pop(false);
-              },
-              child: const Text('Open settings'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              notificationStatus?.isGranted == true
-                  ? 'Keep enabled'
-                  : 'Deny all',
-            ),
-          ),
-          if (pendingMessages.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-                unawaited(_reviewPendingMessageNotifications());
-              },
-              child: Text('Review messages (${pendingMessages.length})'),
-            ),
-          FilledButton(
-            onPressed:
-                supportsAndroidNotifications &&
-                    notificationStatus?.isGranted != true &&
-                    notificationStatus?.isPermanentlyDenied != true
-                ? () => Navigator.of(context).pop(true)
-                : null,
-            child: Text(
-              notificationStatus?.isGranted == true
-                  ? 'Already enabled'
-                  : 'Allow notifications',
-            ),
-          ),
-        ],
       ),
     );
     if (allowNotifications != true ||
@@ -317,11 +462,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<bool?> _confirmMessageMonitoringConsent(int retentionDays) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable message monitoring?'),
+        content: Text(
+          'Cyvora will read notification titles and previews from other apps '
+          'only while Android notification access and your Cyvora consent are '
+          'enabled. Previews are encrypted on this device and expire after '
+          '$retentionDays days. Only messages you choose to scan are sent to '
+          'the analysis service. You can turn monitoring off or delete queued '
+          'messages at any time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('I agree, continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmClearPendingNotifications() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete pending message previews?'),
+        content: const Text(
+          'This permanently deletes all queued notification previews from '
+          'this device. It does not delete scan history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _messageNotificationService.clearPending();
+      if (mounted) _showMessage('Pending message previews were deleted.');
+    } on PlatformException {
+      if (mounted) _showMessage('Could not delete pending message previews.');
+    }
+  }
+
   Future<void> _reviewPendingMessageNotifications() async {
-    final pending = await _messageNotificationService.pending();
+    late final List<PendingMessageNotification> pending;
+    try {
+      pending = await _messageNotificationService.pending();
+    } on PlatformException {
+      if (mounted) _showMessage('Secure notification storage is unavailable.');
+      return;
+    }
     if (!mounted || pending.isEmpty) return;
 
-    final selected = await showDialog<PendingMessageNotification>(
+    final selection = await showDialog<_NotificationReviewSelection>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Review detected messages'),
@@ -335,9 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final item = pending[index];
               return ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(
-                  item.title.isEmpty ? item.packageName : item.title,
-                ),
+                title: Text(item.title.isEmpty ? item.packageName : item.title),
                 subtitle: Text(
                   item.text.isEmpty
                       ? 'No message preview was provided.'
@@ -345,10 +551,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: IconButton(
-                  tooltip: 'Scan this message',
-                  icon: const Icon(Icons.search_rounded),
-                  onPressed: () => Navigator.of(context).pop(item),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Delete this preview',
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .pop((notification: item, shouldScan: false)),
+                    ),
+                    IconButton(
+                      tooltip: 'Scan this message',
+                      icon: const Icon(Icons.search_rounded),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .pop((notification: item, shouldScan: true)),
+                    ),
+                  ],
                 ),
               );
             },
@@ -362,11 +582,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-    if (!mounted || selected == null) return;
+    if (!mounted || selection == null) return;
 
-    await _messageNotificationService.remove(selected.id);
-    final text = selected.text.isEmpty ? selected.title : selected.text;
-    if (text.isNotEmpty) await _analyze('message', text);
+    if (!selection.shouldScan) {
+      try {
+        await _messageNotificationService.remove(selection.notification.id);
+        if (mounted) _showMessage('Pending message preview deleted.');
+      } on PlatformException {
+        if (mounted) {
+          _showMessage('Could not delete the pending message preview.');
+        }
+      }
+      return;
+    }
+
+    try {
+      final outcome = await _pendingNotificationQueue.scan(
+        selection.notification,
+        (content) => _analyze('message', content, showFailureMessage: false),
+      );
+      if (!mounted) return;
+      switch (outcome) {
+        case NotificationScanOutcome.completed:
+          break;
+        case NotificationScanOutcome.failed:
+          _showNotificationRetryMessage(
+            'The notification was kept because analysis failed.',
+          );
+        case NotificationScanOutcome.alreadyProcessing:
+          _showMessage('This notification is already being analyzed.');
+        case NotificationScanOutcome.noContent:
+          _showMessage('No message text was available to scan.');
+      }
+    } on PlatformException {
+      if (mounted) {
+        _showNotificationRetryMessage(
+          'The scan completed, but the notification queue could not be updated.',
+        );
+      }
+    }
+  }
+
+  void _showNotificationRetryMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('$message You can retry from the pending messages.'),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => unawaited(_reviewPendingMessageNotifications()),
+          ),
+        ),
+      );
   }
 
   @override
@@ -970,12 +1238,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _ => 'Scan Message',
   };
 
-  Future<void> _analyze(
+  Future<bool> _analyze(
     String type,
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    bool showFailureMessage = true,
   }) async {
+    var analysisSucceeded = false;
     try {
       final result = await widget.repository.analyzeAndSave(
         type,
@@ -983,21 +1253,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         useAi: useAi,
         useUrlReputation: useUrlReputation,
       );
-      if (!mounted) return;
+      analysisSucceeded = true;
+      if (!mounted) return true;
       _refreshSummary();
       _refreshScanHistory();
       await _showScanResult(result, scannedContent: input, scanType: type);
       await _recordScanAndMaybeAskForFeedback();
+      return true;
     } on FunctionException catch (error) {
-      if (mounted) _showMessage(_scanFunctionErrorMessage(error));
+      if (mounted && showFailureMessage) {
+        _showMessage(_scanFunctionErrorMessage(error));
+      }
+      return analysisSucceeded;
     } on FormatException catch (error) {
-      if (mounted) _showMessage(error.message);
+      if (mounted && showFailureMessage) _showMessage(error.message);
+      return analysisSucceeded;
     } on Exception catch (error) {
-      if (mounted) _showMessage('Could not save this scan: $error');
+      if (mounted && showFailureMessage) {
+        _showMessage('Could not save this scan: $error');
+      }
+      return analysisSucceeded;
     } on StateError catch (error) {
-      if (mounted) _showMessage(error.message);
+      if (mounted && showFailureMessage) _showMessage(error.message);
+      return analysisSucceeded;
     }
-
   }
 
   Future<void> _recordScanAndMaybeAskForFeedback() async {
@@ -3966,11 +4245,7 @@ class _AlertsPage extends StatelessWidget {
 }
 
 class _AlertCard extends StatelessWidget {
-  const _AlertCard({
-    required this.alert,
-    this.onMarkRead,
-    this.onOpenAlert,
-  });
+  const _AlertCard({required this.alert, this.onMarkRead, this.onOpenAlert});
 
   final SecurityAlert alert;
   final ValueChanged<SecurityAlert>? onMarkRead;
