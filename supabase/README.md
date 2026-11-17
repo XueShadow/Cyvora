@@ -6,15 +6,22 @@ the centralized `scam-intelligence` and `family-invitations` functions.
 
 ## Local setup and secrets
 
-The Supabase CLI and Deno are not available in the current validation
-environment, and a full local Supabase stack was not started. Repository
-migrations and both pgTAP suites were executed via direct `psql` against a
-disposable Supabase PostgreSQL 17.11.0.018 container; 27 assertions passed.
-This verifies the tested migrations, RLS, and notification idempotency paths
-locally, but not CLI orchestration, Auth/Storage service integration, true
-multi-session concurrency, Edge Function runtime, hosted staging, or
-production. The base database image needed test-only Auth and Storage schema
-helpers. See the [test results](../docs/CYVORA_TEST_RESULTS.md).
+Docker Desktop 4.90.0, Engine 29.7.2, Compose 5.5.1, and Ubuntu WSL 2
+integration were verified on 2026-11-17. The Supabase CLI is not global, but
+`npx.cmd --yes supabase@3.1.0` works. The local stack is stopped: its project
+volumes/network remain, but the CLI reports the database container missing.
+No reset, volume deletion, or stack startup was performed because that project
+may contain local data and host memory was low. Follow the
+[isolated local setup](../docs/SUPABASE_LOCAL_SETUP.md); see the
+[Docker environment audit](../docs/DOCKER_ENVIRONMENT_AUDIT.md).
+
+Repository migrations and both pgTAP suites were previously executed via
+direct `psql` against a disposable Supabase PostgreSQL 17.11.0.018 container;
+27 assertions passed. This verifies those tested migrations, RLS, and
+notification idempotency paths, but not the currently stopped stack,
+CLI orchestration, Auth/Storage service integration, Edge Function runtime,
+hosted staging, or production. The base database image needed test-only Auth
+and Storage schema helpers. See the [test results](../docs/CYVORA_TEST_RESULTS.md).
 
 [`supabase/.env.example`](.env.example) lists optional provider variable names
 with empty values. It is a reference only: do not put real keys in this file,
