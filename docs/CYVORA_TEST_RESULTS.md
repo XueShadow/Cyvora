@@ -15,6 +15,10 @@ verification.
 | `flutter build apk --debug --no-pub` | **PASS** | Built `flutter/build/app/outputs/flutter-apk/app-debug.apk`; Gradle and Android SDK XML warnings were emitted. |
 | `supabase/tests/security_boundaries.test.sql` | **PASS — 13 pgTAP assertions** | Run via `psql` against a disposable Supabase PostgreSQL 17.11.0.018 container after applying repository migrations. Covers RLS, family access, RPC permissions, invitation lifecycle, deletion cascade, and AI quota checks. |
 | `supabase/tests/notification_scan_idempotency.test.sql` | **PASS — 14 pgTAP assertions** | Same disposable database; covers reservation, duplicate blocking, replay, retry, deletion tombstones, and cleanup scheduling. |
+| Notification reservation separate-session checks | **PASS — 7/7** | Independent PostgreSQL sessions verified contention, expired lease recovery, retry, completed replay, user isolation, RPC authorization, and rollback after transaction failure; not repeated in this pass. |
+| Migration reapplication and catalog checks | **PASS** | Reapplied migrations 005–007 after all 24 migrations; no public tables without RLS and no public `SECURITY DEFINER` functions without fixed `search_path`. |
+| `node --test .\supabase\tests\scam-evaluation.test.mjs` | **PASS — 26 synthetic examples** | 13 TP, 13 TN, 0 FP/FN; six paired scam categories; not real-world performance evidence. |
+| User-provided Docker Scout screenshot | **REVIEWED, NOT REPRODUCED** | Five visible Medium CVEs, but the image reference/digest and package versions are missing; not attributed to a Cyvora artifact. See `CYVORA_DOCKER_IMAGE_ANALYSIS.md`. |
 | `dart pub audit` | **UNAVAILABLE** | The installed Dart SDK has no `pub audit` subcommand. |
 | PHP/Composer audit and Laravel tests | **BLOCKED** | PHP and Composer are not installed/on `PATH`. |
 | Live provider, deployed database, device/OEM, and iOS validation | **NOT TESTED** | No credentials, production systems, or devices were used. |
@@ -23,8 +27,10 @@ The SQL suites ran against a disposable Supabase PostgreSQL image using direct
 `psql`, not `supabase test db` or a fully started local Supabase stack. The
 base database image required test-only Auth and Storage schema helpers. All
 repository migrations through `202611170007` were applied; SQL fixtures rolled
-back. This does not verify a hosted staging/production project, Supabase CLI
-orchestration, or true multi-session concurrency.
+back. Separate-session reservation checks were performed in the previous
+validation pass. This does not verify a hosted staging/production project,
+Supabase CLI orchestration, family/AI quota concurrency, or deployed Edge
+Function behavior.
 
 ## Original baseline
 
@@ -50,12 +56,14 @@ orchestration, or true multi-session concurrency.
 
 ## Scam evaluation fixture
 
-The Node suite's synthetic fixture contains 14 examples: 7 scam-like and 7
-legitimate. It reported 7 true positives, 7 true negatives, 0 false positives,
-and 0 false negatives for this fixture (precision, recall, and accuracy 1.0).
-This is a small regression fixture, not a statistically meaningful estimate
-of real-world performance. A reviewed Filipino/Taglish corpus and held-out
-evaluation are still needed.
+The synthetic fixture now contains 26 examples: 13 scam-like and 13
+legitimate, including paired bank/OTP, government, delivery, romance,
+brand-lookalike, and Unicode-homograph cases. It reported 13 true positives,
+13 true negatives, 0 false positives, and 0 false negatives for this fixture.
+Precision, recall, specificity, F1, and accuracy are 1.0 on these synthetic
+examples only. The cases are not a representative or held-out corpus and do
+not estimate real-world performance. A reviewed Filipino/Taglish corpus and
+independent held-out evaluation are still needed.
 
 ## Interpretation
 

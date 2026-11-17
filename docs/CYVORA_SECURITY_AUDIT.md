@@ -4,11 +4,13 @@
 > baseline below. Notification queue encryption/retention and Android release
 > workflow hardening have since been implemented in source. The queue retains
 > failed items and supports retry; notification idempotency and security
-> boundary suites now pass locally (14 and 13 pgTAP assertions). The tests ran
-> via direct `psql` against a disposable Supabase PostgreSQL container, not a
-> hosted staging project. Production migration state, true multi-session
-> behavior, GitHub owner settings, live providers, and device behavior remain
-> unverified. For current results, use
+> boundary suites pass locally (14 and 13 pgTAP assertions), and seven
+> separate-connection reservation checks passed. All 24 repository migrations
+> were applied locally; migrations 005–007 were reapplied. The tests ran via
+> direct `psql` against a disposable Supabase PostgreSQL container, not hosted
+> staging. Production migration state, GitHub owner settings, live providers,
+> and device behavior remain unverified. An independent source/workflow
+> review found no confirmed exploitable vulnerabilities. For current results, use
 > [the complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md) and
 > [remediation report](CYVORA_REMEDIATION_REPORT.md).
 
@@ -49,14 +51,13 @@ deployed to production.
 
 ## Privacy and control gaps (not confirmed exploitable vulnerabilities)
 
-- Android notification previews are stored in app-private
-  `SharedPreferences`; the queue has a maximum item count but no verified
-  time-based retention or application-layer encryption. Review the
-  device-threat model and add explicit retention/clear controls before claiming
-  encryption-at-rest protection.
-- Notification analysis is user-initiated rather than automatic. The selected
-  queue item is removed before the scan completes; a failed scan can therefore
-  lose that preview.
+- Android notification previews are stored with AES/GCM using Android Keystore
+  and have 1/7/30-day retention and clear controls in source. Device hardware,
+  key-loss, and OEM behavior remain unverified. No per-app exclusion or
+  per-notification content-length cap was found.
+- Notification analysis is user-initiated rather than automatic. The queue
+  retains items on failure and supports retry in source; actual device process
+  death/recovery remains unverified.
 - AI and URL reputation integrations may share minimized scan data or the
   submitted URL with third parties after user selection. Provider retention,
   pricing, and current model availability were not independently verified.
@@ -66,9 +67,9 @@ deployed to production.
 
 | Area | Status | Required evidence |
 |---|---|---|
-| Production RLS and family isolation | NOT TESTED | Run separate-user authorization and cross-family tests in isolated staging. |
-| Database RPC permissions and concurrency | NOT TESTED | Execute migrations on PostgreSQL and test concurrent quota/invitation requests, cooldowns, leases, and circuit recovery. |
-| Production schema alignment | PARTIALLY VERIFIED | Dashboard ledger showed latest entry `202611150005_mfa_enforcement`; `202611150006` and `202611170001`–`202611170004` were absent. Edge Function deployment revisions remain unknown. |
+| Local RLS/RPC and notification reservation | PASS locally | Disposable database: 13 security-boundary and 14 idempotency pgTAP assertions plus 7 separate-connection reservation checks. Repeat on isolated hosted staging. |
+| Database RPC permissions and concurrency | PARTIALLY VERIFIED | Notification reservation concurrency is verified locally; family-invitation and AI-quota concurrency, provider circuit behavior against live services, and hosted behavior remain unverified. |
+| Hosted schema alignment | NOT VERIFIED | Historical dashboard evidence recorded `202611150005_mfa_enforcement`; this pass did not inspect a hosted migration ledger. Edge Function deployment revisions remain unknown. |
 | Supabase Auth/MFA settings | NOT TESTED | Verify redirect allowlists, session settings, MFA enrollment policy, rate limits, and SMS delivery in the project dashboard. |
 | Provider runtime secrets and model calls | NOT TESTED | Owner verifies server-side configuration in staging; no credentials were read and no live calls were made. |
 | Android storage/retention behavior | NOT TESTED | Test consent, revocation, clearing, and retention on supported Android and OEM devices. |

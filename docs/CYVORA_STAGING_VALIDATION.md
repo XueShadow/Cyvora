@@ -23,6 +23,19 @@ ledger state, deployed function revisions, hosted authorization behavior,
 and live provider behavior remain unverified. No production access was
 attempted.
 
+Git state at validation start: branch
+`security/complete-production-hardening`, HEAD and upstream
+`392231280bbfaf1dc09096a77ebe4cbf0542e0bd`, merge base
+`83fba3ccc46563c9999069f732ab3fddaa462287`. The branch has 36 committed
+paths changed from `main` (+1,943/-172). One untracked patch file
+(`security-hardening-review.patch`, 273,612 bytes) was preserved. Evaluation
+and documentation updates from this pass are local and uncommitted.
+
+On the disposable database, migrations `202611170005`–`202611170007` were
+reapplied successfully after all 24 migrations. Catalog checks found RLS
+enabled on all 31 public tables and no public `SECURITY DEFINER` functions
+without a fixed `search_path`. These results are local-only.
+
 ## Before running tests
 
 1. Confirm the staging project is isolated and has no production secrets or
@@ -158,6 +171,36 @@ monetary caps from request quotas. Do not invent provider prices or claim a
 spend limit exists without provider evidence. Remove staging keys after the
 test. All live-provider cases remain unverified.
 
+### Secret and configuration names
+
+No values were printed, inspected, or used. The repository template names the
+server-side variables below; configure only the ones required for selected
+staging providers:
+
+- Supabase Edge Functions: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+  Flutter build configuration also uses `SUPABASE_URL` and
+  `SUPABASE_ANON_KEY`; the anon key is public client configuration, not a
+  service-role secret.
+- AI provider credentials: `GEMINI_API_KEY`, `GROQ_API_KEY`,
+  `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `CLOUDFLARE_API_TOKEN`,
+  `CLOUDFLARE_ACCOUNT_ID`, `SAMBANOVA_API_KEY`, `COHERE_API_KEY`,
+  `NVIDIA_API_KEY`, `ZAI_API_KEY`, `HF_TOKEN`.
+- AI routing/models/limits: `AI_PROVIDER_ORDER`, `AI_FALLBACK_ENABLED`,
+  `AI_GLOBAL_DAILY_REQUEST_LIMIT`, `AI_USER_DAILY_REQUEST_LIMIT`,
+  `AI_<PROVIDER>_DAILY_REQUEST_LIMIT`, `AI_PROVIDER_<PROVIDER>_ENABLED`,
+  and the selected provider's `*_MODEL` variable. These request limits do
+  not cap currency spend.
+- Optional URL reputation credentials: `URLHAUS_AUTH_KEY`,
+  `GOOGLE_SAFE_BROWSING_API_KEY`, `OTX_API_KEY`, `PHISHTANK_API_KEY`,
+  `URLSCAN_API_KEY`, `THREATFOX_AUTH_KEY`, `VIRUSTOTAL_API_KEY`,
+  `PULSEDIVE_API_KEY`.
+- Android signing workflow secrets (owner verification required):
+  `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+  `KEY_PASSWORD`.
+
+The names come from repository code/templates only; presence and correctness
+in any GitHub Environment or Supabase project were not verified.
+
 ## Android and Flutter device checks
 
 No physical Android device was attached: `adb` was unavailable and the only
@@ -189,7 +232,11 @@ one supported Android version and an OEM device. Cover:
 
 The current notification flow requires a user to review/select an item; it is
 not automatic background analysis. The physical-device cases above remain
-unexecuted.
+unexecuted. See the separate
+[physical-device test plan](CYVORA_DEVICE_TEST_PLAN.md) for test cards and
+evidence fields. No per-app exclusion setting or per-notification content
+length cap was found; include oversized-content and multiple-source cases and
+record the intended user-visible behavior before release.
 
 ## Android release workflow and GitHub settings
 
@@ -202,14 +249,17 @@ draft-only. The build job checks APK/AAB structure, version, supported ABI and
 permissions, and the expected production signing certificate before uploading
 the validated artifacts.
 
-The exact release-policy test command passed 15 tests locally. The current
-commit's GitHub CI run also passed both Flutter and backend jobs. No Android
-release workflow run exists for this branch. GitHub Environment reviewers,
+The exact release-policy test command passed 15 tests locally on the previous
+source validation. GitHub CI run [44074458843](https://github.com/XueShadow/Cyvora/actions/runs/44074458843)
+passed both Flutter and backend jobs for source commit `659b79d`; it is not a
+run of current HEAD or the uncommitted fixture change. No Android release
+workflow run exists for this branch. GitHub Environment reviewers,
 deployment branch/tag restrictions, secret placement, branch protection, and
 tag rulesets require repository-owner inspection; they cannot be established
 from workflow source. The workflow and artifact validator currently expect
 application ID `com.example.cyvora_mobile`; the owner must confirm or replace
-that identifier before a store release.
+that identifier before a store release. See the separate
+[release security review](CYVORA_RELEASE_SECURITY.md).
 
 ## Evidence to retain
 
@@ -219,3 +269,12 @@ configuration status (not secret values), device/API-level matrix, release
 workflow run, manual GitHub settings review, and sanitized failures. Update
 `docs/CYVORA_TEST_RESULTS.md` only with checks that actually ran. Do not infer
 production status from successful staging tests.
+
+The synthetic classifier run is documented separately in
+[scam-detection evaluation](CYVORA_SCAM_DETECTION_EVALUATION.md); it is not a
+substitute for a representative held-out corpus.
+
+The user-provided Docker Scout screenshot is documented in
+[Docker image analysis](CYVORA_DOCKER_IMAGE_ANALYSIS.md). Its image identity
+is unverified; reproduce the scan against the exact staging/release image
+digest before relying on its results.

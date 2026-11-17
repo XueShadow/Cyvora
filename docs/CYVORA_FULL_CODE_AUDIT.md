@@ -6,7 +6,10 @@
 > added on `security/complete-production-hardening`. Repository migrations
 > through `202611170007` and both pgTAP suites have since passed locally on a
 > disposable Supabase PostgreSQL container; hosted staging and production
-> were not tested. Existing findings and counts below describe their original
+> were not tested. The latest synthetic evaluation contains 26 cases across
+> six paired categories (13 TP, 13 TN, 0 FP/FN); it is still not a real-world
+> estimate. Seven independent-session notification reservation checks also
+> passed locally. Existing findings and counts below describe their original
 > baseline. See the
 > [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
 > [remediation report](CYVORA_REMEDIATION_REPORT.md), and

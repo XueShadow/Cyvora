@@ -28,7 +28,12 @@ rules, device behavior, and iOS readiness remain unverified.
 - [x] Run separate-connection notification reservation checks locally: 7/7
       assertions passed for contention, expiry, retry, completion replay,
       user isolation, RPC authorization, and transaction rollback.
+- [x] Reapply migrations `202611170005`–`202611170007`; local catalog checks
+      found RLS enabled on all 31 public tables and no public security-definer
+      functions without a fixed `search_path`.
 - [ ] Run concurrent family-invitation and AI-quota tests on isolated staging.
+- [ ] Resolve the notification privacy/reliability product gap: there is no
+      per-app exclusion setting or per-notification title/text size cap.
 
 ## Manual GitHub owner configuration
 
@@ -70,6 +75,10 @@ These settings were not changed or verified in GitHub during this work.
       the current minimizer is heuristic, not complete de-identification.
 - [ ] Build a representative, reviewed Filipino/Taglish and English evaluation
       corpus with held-out precision, recall, F1, and false-positive reporting.
+- [x] Expand the synthetic regression fixture to 26 cases across bank/OTP,
+      government, delivery, romance, brand-lookalike, Unicode-homograph, and
+      legitimate examples. Result: 13 TP, 13 TN, 0 FP/FN; not real-world
+      accuracy evidence.
 - [ ] Verify user consent and third-party data disclosures for each provider.
 
 ## Mobile, platform, and operations
@@ -87,21 +96,33 @@ version and an OEM device.
 - [ ] Build, sign, and test iOS on macOS/Xcode.
 - [ ] Confirm Laravel's intended role; PHP/Composer tests did not run.
 - [ ] Run supported dependency advisory scans in a prepared environment.
+- [ ] Identify and reproduce the user-provided Docker Scout image scan by
+      immutable digest; resolve the five visible CVEs and reconcile the
+      screenshot's red summary counter before shipping any matching image.
 - [ ] Confirm incident response, logging redaction, provider spend alerting,
       and rollback procedures.
 
 ## Validation evidence
 
-Passed locally: Flutter analyze, 66 Flutter tests, 96 Supabase Node tests,
-15 Android release-policy tests, Android debug APK build, all 24 repository
-migrations on disposable Supabase PostgreSQL, 27 pgTAP assertions, and 7
-separate-connection notification-reservation checks. GitHub CI run
+Passed locally on the previously validated source commit: Flutter analyze,
+66 Flutter tests, 96 Supabase Node tests, 15 Android release-policy tests,
+Android debug APK build, all 24 repository migrations on disposable Supabase
+PostgreSQL, 27 pgTAP assertions, 7 separate-connection
+notification-reservation checks, successful reapplication of migrations
+005–007, and the new 26-example synthetic classifier fixture. GitHub CI run
 [44074458843](https://github.com/XueShadow/Cyvora/actions/runs/44074458843)
-passed both jobs for commit `659b79decca326d5a5f77dcdcd813d5ec9afe864`.
+passed both jobs for source commit `659b79d`. Current HEAD is
+`392231280bbfaf1dc09096a77ebe4cbf0542e0bd`; the uncommitted evaluation fixture
+has not run in CI.
 
 Not verified: hosted Supabase staging, live AI providers, provider spend
 controls, physical Android/OEM behavior, iOS, PHP/Laravel, and dependency
 advisory scans. GitHub Environment and repository protection settings require
 owner inspection. The Android release workflow has no run on this branch.
+The Docker Scout screenshot is not mapped to a Cyvora image; see the
+[Docker image analysis](CYVORA_DOCKER_IMAGE_ANALYSIS.md).
 See [test results](CYVORA_TEST_RESULTS.md) and
-[staging validation](CYVORA_STAGING_VALIDATION.md).
+[staging validation](CYVORA_STAGING_VALIDATION.md), the
+[device test plan](CYVORA_DEVICE_TEST_PLAN.md), the
+[scam evaluation](CYVORA_SCAM_DETECTION_EVALUATION.md), and the
+[release security review](CYVORA_RELEASE_SECURITY.md).

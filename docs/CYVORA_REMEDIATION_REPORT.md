@@ -48,8 +48,10 @@ signing Environment. Source configuration does not create GitHub settings.
   omitting the schedule.
 - Added focused Node source-contract tests and a 14-assertion pgTAP suite.
 
-**Limit:** Local pgTAP suites pass, but true multi-session behavior has not
-been tested. If a provider call succeeds and the process fails before the
+Separate-connection tests passed 7/7 for reservation contention, lease
+recovery, retry after failure, completed replay without duplicate rows,
+per-user key isolation, RPC permissions, and rollback after transaction
+failure. If a provider call succeeds and the process fails before the
 transaction commits, retry after lease expiry can call the provider again.
 
 ### 3. Notification privacy
@@ -64,6 +66,9 @@ transaction commits, retry after lease expiry can call the provider again.
   cannot guarantee redaction of every identifier or secret.
 - Added idempotency response retention and cleanup. No plaintext notification
   is placed in the idempotency key.
+- No per-app exclusion control or per-notification payload-size cap was found.
+  These remain product/privacy and reliability decisions for device testing;
+  this pass did not silently truncate or discard user notification content.
 
 ### 4. Supabase staging verification preparation
 
@@ -78,6 +83,11 @@ transaction commits, retry after lease expiry can call the provider again.
   `psql`: 13 security-boundary and 14 idempotency assertions. The bare image
   required test-only Auth and Storage schema helpers; this was not a full
   Supabase CLI stack or hosted staging run.
+- Reapplied migrations `202611170005`–`202611170007` after the fresh migration
+  run. Catalog checks found no public tables without RLS and no public
+  `SECURITY DEFINER` functions without a fixed `search_path`.
+- Previously completed separate-connection reservation checks were not
+  repeated.
 
 ### 5. AI provider validation
 
@@ -96,6 +106,12 @@ transaction commits, retry after lease expiry can call the provider again.
 - Advisory scanners, PHP/Composer, Deno, PostgreSQL/Supabase CLI, iOS/Xcode,
   and physical Android/OEM verification were unavailable or not run. No
   dependency-security result is claimed.
+- A user-provided Docker Scout screenshot was reviewed, but its truncated
+  image reference prevents attribution to a Cyvora artifact. No image scan or
+  remediation was performed; see the Docker image analysis.
+- The focused synthetic scam evaluation was expanded from 14 to 26 examples
+  and passed: 13 TP, 13 TN, 0 FP, 0 FN. It remains a small regression fixture,
+  not real-world accuracy evidence.
 
 ### 7. Documentation
 
@@ -104,6 +120,10 @@ Added:
 - [Complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md)
 - [Staging validation plan](CYVORA_STAGING_VALIDATION.md)
 - [Final production checklist](CYVORA_FINAL_PRODUCTION_CHECKLIST.md)
+- [Physical-device test plan](CYVORA_DEVICE_TEST_PLAN.md)
+- [Synthetic scam-detection evaluation](CYVORA_SCAM_DETECTION_EVALUATION.md)
+- [Release security review](CYVORA_RELEASE_SECURITY.md)
+- [Docker image scan review](CYVORA_DOCKER_IMAGE_ANALYSIS.md)
 
 Updated:
 
@@ -122,7 +142,8 @@ Updated:
 | Node test suite | PASS — 96 tests |
 | Android release policy tests | PASS — 15 tests |
 | `flutter build apk --debug --no-pub` | PASS |
-| SQL migration/pgTAP execution | PASS — 27 assertions on disposable local PostgreSQL |
+| SQL migration/pgTAP execution | PASS — 27 assertions on disposable local PostgreSQL; 005–007 reapplied successfully |
+| Scam evaluation | PASS — 26 synthetic examples; 13 TP, 13 TN, 0 FP/FN; not a real-world estimate |
 | Live providers, production deployment, device/iOS tests | NOT RUN |
 
 See [test results](CYVORA_TEST_RESULTS.md) for detailed limitations. The work

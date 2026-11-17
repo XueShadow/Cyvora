@@ -1,5 +1,16 @@
 # Cyvora Production Readiness Audit
 
+> **Current status addendum:** The historical deployment and test statements
+> below describe the audit snapshot dated 2026-11-17 and are not current
+> hosted-state evidence. A subsequent local validation applied all 24
+> repository migrations through `202611170007`, passed 27 pgTAP assertions
+> and seven separate-session notification-reservation checks, and reapplied
+> migrations `202611170005`–`202611170007`. No hosted migration ledger,
+> production resource, live provider, or physical Android device was accessed
+> for that validation. See
+> [the current staging validation](CYVORA_STAGING_VALIDATION.md) and
+> [complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md).
+
 **Audit date:** 2026-11-17  
 **Repository:** `XueShadow/Cyvora`  
 **Pushed baseline:** `c8aab79` on `main`; migration 004 is the forward-only dedupe-order correction

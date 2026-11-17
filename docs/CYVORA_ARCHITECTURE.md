@@ -4,8 +4,10 @@
 > audit baseline. Android notification previews now use encrypted,
 > consent-controlled local storage with retention/deletion controls, and
 > notification scan requests carry a server idempotency key on the current
-> remediation branch. Database execution and device behavior remain
-> unverified. See the
+> remediation branch. All 24 repository migrations through `202611170007`
+> were applied to a fresh disposable Supabase PostgreSQL database and the
+> three latest migrations reapplied successfully. Hosted deployment state
+> and physical-device behavior remain unverified. See the
 > [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md).
 
 **Audit date:** 2026-11-17
@@ -73,20 +75,24 @@ results, and uses server-side provider configuration. `family-invitations`
 handles invitation operations using the service-role key only server-side.
 
 Migrations define schemas, RLS, RPCs, quotas, provider health, and retention.
-The production dashboard ledger was observed at
-`202611150005_mfa_enforcement`; repository migrations
-`202611150006_scan_history_retention.sql` and `202611170001`–`202611170004`
-were not recorded as applied. Edge Function deployment revisions were not
-verified. This makes repository state and production database state different;
-no migration was run during this audit.
+All 24 repository migrations through `202611170007` were applied locally
+using direct `psql` against a disposable Supabase PostgreSQL 17.11.0.018
+container, then migrations `202611170005`–`202611170007` were reapplied.
+Catalog checks found RLS enabled on all 31 public tables and no public
+`SECURITY DEFINER` functions lacking a fixed `search_path`. This does not
+establish hosted or production migration state; no current hosted ledger or
+deployed Edge Function revision was checked.
 
 ### Android and iOS
 
 Android uses a native `NotificationListenerService`, not the default-SMS-app
 role. It queues eligible notification title/text/package metadata in
-app-private preferences. Flutter exposes a user-initiated review list; the
-selected item is sent to the server only after the user chooses to scan it.
-This is not automatic background analysis. iOS uses the Flutter app and
+app-private AES/GCM-encrypted storage backed by Android Keystore, with
+1/7/30-day retention and clear controls. Flutter exposes a user-initiated
+review list; the selected item is sent to the server only after the user
+chooses to scan it. This is not automatic background analysis. No per-app
+exclusion setting or per-notification content-length cap was found. iOS uses
+the Flutter app and
 Supabase Auth callback URL scheme; no equivalent notification-listener
 implementation was identified.
 

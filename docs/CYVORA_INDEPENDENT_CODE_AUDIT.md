@@ -5,9 +5,11 @@
 > `security/complete-production-hardening` branch, F-01 has source-level
 > release-ref and protected-Environment mitigations, and the notification
 > queue-loss finding has retry/completion-marker fixes plus a server-side
-> idempotency migration. The migration and pgTAP suite are prepared but have
-> not been executed. No confirmed exploitable vulnerability is currently
-> established by the source-level review. Read the
+> idempotency migration. All 24 repository migrations and both pgTAP suites
+> were executed on disposable local Supabase PostgreSQL; seven
+> separate-connection reservation checks passed. An independent review of
+> current source/workflow code found no confirmed exploitable vulnerabilities.
+> Hosted settings and device behavior remain unverified. Read the
 > [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
 > [remediation report](CYVORA_REMEDIATION_REPORT.md), and
 > [staging plan](CYVORA_STAGING_VALIDATION.md) for current test results and
