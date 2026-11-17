@@ -5,10 +5,11 @@
 **CONDITIONALLY READY FOR ISOLATED STAGING VALIDATION. NOT READY FOR
 PRODUCTION.**
 
-Local Flutter, backend Node, release-policy, and Android debug-build checks
-passed. The new notification idempotency migration and prepared PostgreSQL
-tests have not been executed. Production schema alignment, live providers,
-GitHub protection rules, device behavior, and iOS readiness are unverified.
+Local Flutter, backend Node, release-policy, Android debug-build, migration,
+pgTAP, and notification-reservation concurrency checks passed. No hosted
+staging project, provider credentials, or physical Android device were
+available. Production schema alignment, live providers, GitHub protection
+rules, device behavior, and iOS readiness remain unverified.
 
 ## Source and CI
 
@@ -20,10 +21,14 @@ GitHub protection rules, device behavior, and iOS readiness are unverified.
 - [x] Notification scan request IDs support server idempotency in source.
 - [x] Notification previews use encrypted local storage and consent/retention
       controls in source.
-- [ ] Execute the new SQL migration and both pgTAP suites on disposable local
-      Supabase and isolated staging.
-- [ ] Run multi-connection race tests for notification requests, invitations,
-      and AI quota reservation.
+- [x] Applied all 24 repository migrations through `202611170007` on a fresh
+      disposable Supabase PostgreSQL database; the 13 security-boundary and
+      14 notification-idempotency pgTAP assertions passed.
+- [ ] Apply/verify migrations and pgTAP behavior on isolated hosted staging.
+- [x] Run separate-connection notification reservation checks locally: 7/7
+      assertions passed for contention, expiry, retry, completion replay,
+      user isolation, RPC authorization, and transaction rollback.
+- [ ] Run concurrent family-invitation and AI-quota tests on isolated staging.
 
 ## Manual GitHub owner configuration
 
@@ -32,19 +37,25 @@ GitHub protection rules, device behavior, and iOS readiness are unverified.
 - [ ] Store signing values only in `android-signing` Environment secrets.
 - [ ] Protect the default branch and stable `v*` tags against unauthorized
       creation, updates, and force-pushes.
+- [ ] Confirm the release application ID `com.example.cyvora_mobile` is the
+      intended Play Store identity; change both Gradle and artifact validation
+      configuration if it is only a placeholder.
 - [ ] Review the generated draft artifacts and checksums before publishing.
 
 These settings were not changed or verified in GitHub during this work.
 
 ## Supabase and data
 
-- [ ] Verify the actual target project's migration ledger and function
-      revisions; repository state is not deployment evidence.
+- [ ] Verify the actual target project's migration ledger and deployed
+      function revisions; local database state is not deployment evidence.
 - [ ] Apply reviewed migrations `202611170001`–`202611170007` in order in
       staging, including notification idempotency and the initial-lease fix,
       and verify the required `pg_cron` cleanup job.
-- [ ] Run RLS, cross-account, family isolation, unauthorized RPC, invitation
-      concurrency, quota, replay, deletion, and expiry tests.
+- [x] Run local RLS, cross-account, unauthorized RPC, notification replay,
+      deletion, expiry, and 7-case notification concurrency checks on a
+      disposable database.
+- [ ] Run equivalent hosted staging checks, plus family invitation and AI
+      quota concurrency tests.
 - [ ] Confirm backup/restore and retention behavior in staging.
 - [ ] Keep service-role and provider secrets server-side; rotate or remove
       staging secrets after testing.
@@ -66,6 +77,10 @@ These settings were not changed or verified in GitHub during this work.
 - [ ] Test Android consent, queue retry, idempotency, encryption, key loss,
       retention expiry, deletion, permission revocation, reboot, force-stop,
       and supported OEM behavior on devices.
+Physical-device validation was unavailable for this gate (`adb` unavailable;
+the listed emulator was offline). When available, record device/model,
+Android/API level, security patch, and build fingerprint; test one supported
+version and an OEM device.
 - [ ] Confirm the default SMS application is not changed or required.
 - [ ] Confirm Android/iOS application identifiers with the owner before any
       store release; no identifiers were changed.
@@ -77,9 +92,16 @@ These settings were not changed or verified in GitHub during this work.
 
 ## Validation evidence
 
-Passed locally: Flutter analyze, 66 Flutter tests, 94 Supabase Node tests,
-15 Android release-policy tests, and Android debug APK build. Not run:
-PostgreSQL/pgTAP, Deno runtime, PHP/Laravel, live providers, production
-verification, iOS, Android device/OEM, and dependency advisory scans.
+Passed locally: Flutter analyze, 66 Flutter tests, 96 Supabase Node tests,
+15 Android release-policy tests, Android debug APK build, all 24 repository
+migrations on disposable Supabase PostgreSQL, 27 pgTAP assertions, and 7
+separate-connection notification-reservation checks. GitHub CI run
+[44074458843](https://github.com/XueShadow/Cyvora/actions/runs/44074458843)
+passed both jobs for commit `659b79decca326d5a5f77dcdcd813d5ec9afe864`.
+
+Not verified: hosted Supabase staging, live AI providers, provider spend
+controls, physical Android/OEM behavior, iOS, PHP/Laravel, and dependency
+advisory scans. GitHub Environment and repository protection settings require
+owner inspection. The Android release workflow has no run on this branch.
 See [test results](CYVORA_TEST_RESULTS.md) and
 [staging validation](CYVORA_STAGING_VALIDATION.md).

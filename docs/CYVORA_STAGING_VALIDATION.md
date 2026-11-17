@@ -5,14 +5,23 @@
 Use a new, isolated Supabase staging project or disposable local Supabase
 stack, with test accounts and non-production provider credentials. Do not
 point these tests at production. Do not copy production data into staging
-without an approved, minimized, and scrubbed dataset. No staging project was
-created or changed during this task.
+without an approved, minimized, and scrubbed dataset. No hosted staging
+project or credentials were available for this validation, and no staging or
+production resources were changed.
 
-The security-boundary and notification-idempotency pgTAP suites have passed
-against a disposable Supabase PostgreSQL 17.11.0.018 container using direct
-`psql`. This was not a full Supabase CLI stack or hosted staging project.
-The base image required test-only Auth and Storage schema helpers. No staging
-or production resources were created or changed.
+All 24 repository migrations through `202611170007` were applied in timestamp
+order to a fresh disposable Supabase PostgreSQL 17.11.0.018 container using
+direct `psql`. The database was bootstrapped with test-only Auth and Storage
+helpers; this was not a full Supabase CLI stack or a hosted staging project.
+The previously recorded 27 pgTAP assertions and 96 Supabase Node tests were
+not rerun. A new, separate-connection concurrency run passed all 7 checks
+listed below.
+
+No hosted staging URL, Supabase credentials, or staging provider credentials
+were available in the workspace or process environment. Therefore, migration
+ledger state, deployed function revisions, hosted authorization behavior,
+and live provider behavior remain unverified. No production access was
+attempted.
 
 ## Before running tests
 
@@ -62,9 +71,32 @@ assertions. It does not replace full-stack staging validation.
 
 ### Separate-connection concurrency tests
 
-The pgTAP suite does not prove true multi-session races. In staging, use two
-independent authenticated requests with the same user/request ID and verify
-that only one receives a lease. Also test:
+The local run used separate `psql` connections against the disposable
+database, with RPC calls made as `service_role`. It passed 7/7 checks:
+
+1. Worker A reserved a user/request key inside a transaction, held it for
+   five seconds, and committed. Worker B started 0.9 seconds later on another
+   connection and received `processing` after the unique-key conflict resolved;
+   Worker A received `reserved`.
+2. An active lease was set to expire, then retried. The retry returned
+   `reserved` with a different lease token.
+3. Releasing a failed scan reservation allowed the same key to be reserved
+   again.
+4. Completing a scan and calling completion again returned the original scan
+   ID; reservation replay returned `completed`, and exactly one scan row
+   existed.
+5. The same request key and fingerprint for two different users produced two
+   independent `reserved` results. The `authenticated` role had neither
+   execute permission on the reservation RPC nor SELECT permission on the
+   reservation table.
+6. An actual RPC invocation under the `authenticated` role was denied.
+7. An intentional division-by-zero error after reservation aborted the
+   transaction. A separate connection observed no reservation row, and a
+   retry successfully returned `reserved`.
+
+These are database-level checks, not proof of deployed Edge Function
+behavior. Repeat the relevant cases against isolated hosted staging using two
+independently authenticated requests. Also test:
 
 1. Same request key and same input concurrently: exactly one provider analysis
    and one scan record; the other request receives `409` or the saved replay.
@@ -83,23 +115,60 @@ that only one receives a lease. Also test:
 Capture only request IDs, response status codes, test-user identifiers, and
 row counts. Do not log message content or secrets.
 
-## Edge Function and provider checks
+## Hosted Supabase staging checks
 
-First deploy matching migrations and Edge Function code to staging only.
-Verify function versions before enabling a test provider. With provider calls
-disabled, verify authentication, MFA step-up where required, bounded body
-validation, quota rejection, notification replay, deleted-result behavior,
-and sanitized errors.
+When an authorized isolated staging project is available:
 
-For each provider separately, use a low-privilege staging key and a minimal
-synthetic message. Verify authentication, model selection, timeout, malformed
-response, 429/5xx handling, fallback stopping rules, quota accounting, and
-provider-side spend alerts. Do not use real notification content. Remove
-staging keys after the test. No live provider test has been performed.
+1. Record the hosted `supabase_migrations.schema_migrations` versions and
+   deployed Edge Function revisions. Compare the ledger to the complete
+   repository migration list through `202611170007`; confirm the notification
+   cleanup job is scheduled.
+2. Use two synthetic users in separate families to verify RLS reads/writes,
+   family isolation, invite creation/acceptance authorization, and denial of
+   cross-account access.
+3. Verify `anon` and `authenticated` cannot execute service-role RPCs, while
+   only the server-side service role can. Confirm no service-role key appears
+   in Flutter assets or client requests.
+4. Call protected Edge Functions without a token, with an invalid token, with
+   a valid user token, and with an MFA-enabled user at each required assurance
+   level. Confirm unauthorized requests do not reach providers or write data.
+5. Exercise quota boundaries and simultaneous requests for notification,
+   family-invite, per-user AI, and provider limits. Confirm failures are
+   sanitized and do not leave stale reservations.
+6. Capture only migration versions, function revisions, synthetic test-user
+   IDs, status codes, and row counts. Never print tokens, message content, or
+   secret values.
+
+## Edge Function and AI provider checks
+
+No live provider request was performed because staging provider credentials
+were unavailable. For each configured provider separately, use a minimal
+synthetic input and verify:
+
+- valid and invalid requests, maximum input size, authentication, and model
+  selection;
+- timeout, provider outage, malformed output, HTTP 429, and HTTP 5xx behavior;
+- duplicate and concurrent request handling, quota exhaustion, and
+  circuit-breaker recovery; and
+- that every provider failure returns an explicit failure/unavailable result
+  and never a fabricated successful scam verdict.
+
+Use provider-side staging alerts/limits where available, but do not infer
+monetary caps from request quotas. Do not invent provider prices or claim a
+spend limit exists without provider evidence. Remove staging keys after the
+test. All live-provider cases remain unverified.
 
 ## Android and Flutter device checks
 
-On supported Android versions and at least one OEM device:
+No physical Android device was attached: `adb` was unavailable and the only
+listed Android emulator (`emulator-5554`) was offline. No device or emulator
+test is claimed. The release artifact validator requires `minSdk` 24 and
+`targetSdk` at least 35; verify those values on the built artifact before
+selecting the final device matrix.
+
+When a physical device is available, record the manufacturer, model, Android
+version/API level, security patch date, and build fingerprint. Test at least
+one supported Android version and an OEM device. Cover:
 
 - grant and revoke notification-listener access;
 - confirm the user's default SMS app is unchanged;
@@ -107,6 +176,10 @@ On supported Android versions and at least one OEM device:
 - force analysis failure, confirm the preview remains available, and retry;
 - kill/restart the app before and after server success and confirm no duplicate
   history rows;
+- test multiple notification sources and notification updates, then exercise
+  Doze, App Standby, OEM battery optimization, and background-network
+  restrictions; confirm retries occur only through the intended
+  user-reviewed flow;
 - verify encrypted persistence, migration of an existing queue, 1/7/30-day
   expiration, deletion, Keystore loss behavior, reboot, and force-stop;
 - inspect logs to ensure notification content, tokens, and provider inputs
@@ -115,12 +188,34 @@ On supported Android versions and at least one OEM device:
   confirmation.
 
 The current notification flow requires a user to review/select an item; it is
-not automatic background analysis. Device/OEM checks remain unverified.
+not automatic background analysis. The physical-device cases above remain
+unexecuted.
+
+## Android release workflow and GitHub settings
+
+The workflow source is pinned to full commit SHAs for every external action.
+It validates stable `vMAJOR.MINOR.PATCH` tags and requires the target commit to
+be an ancestor of the default branch; manual dispatch is restricted to that
+branch. Signing and publishing use separate named Environments, job
+permissions are read-only except for the publishing job, and publication is
+draft-only. The build job checks APK/AAB structure, version, supported ABI and
+permissions, and the expected production signing certificate before uploading
+the validated artifacts.
+
+The exact release-policy test command passed 15 tests locally. The current
+commit's GitHub CI run also passed both Flutter and backend jobs. No Android
+release workflow run exists for this branch. GitHub Environment reviewers,
+deployment branch/tag restrictions, secret placement, branch protection, and
+tag rulesets require repository-owner inspection; they cannot be established
+from workflow source. The workflow and artifact validator currently expect
+application ID `com.example.cyvora_mobile`; the owner must confirm or replace
+that identifier before a store release.
 
 ## Evidence to retain
 
-Record the staging migration ledger, function revisions, pgTAP output,
-multi-session test results, provider configuration status (not secret values),
-device/API-level matrix, and sanitized failures. Update
+Record the Git branch/commit and preserved untracked files, staging migration
+ledger, function revisions, pgTAP output, multi-session test results, provider
+configuration status (not secret values), device/API-level matrix, release
+workflow run, manual GitHub settings review, and sanitized failures. Update
 `docs/CYVORA_TEST_RESULTS.md` only with checks that actually ran. Do not infer
 production status from successful staging tests.
