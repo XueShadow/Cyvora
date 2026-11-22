@@ -176,6 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _scanHistoryLoading = true;
   bool _scanHistoryHasMore = false;
   int _scanHistoryRequestId = 0;
+  Future<DashboardSummary>? _summaryRequest;
   final Set<String> _readAlertIds = {};
   late String _profileEmail;
   late String _profileFirstName;
@@ -814,11 +815,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<DashboardSummary> _loadSummary() {
-    return widget.repository.loadSummary().timeout(
+    final inFlightRequest = _summaryRequest;
+    if (inFlightRequest != null) return inFlightRequest;
+
+    final request = widget.repository.loadSummary().timeout(
       _dashboardInitialLoadTimeout,
       onTimeout: () =>
           throw TimeoutException('The dashboard summary request timed out.'),
     );
+    _summaryRequest = request;
+    unawaited(
+      request.then<void>((_) {
+        if (identical(_summaryRequest, request)) {
+          _summaryRequest = null;
+        }
+      }, onError: (Object error, StackTrace stackTrace) {
+        if (identical(_summaryRequest, request)) {
+          _summaryRequest = null;
+        }
+      }),
+    );
+    return request;
   }
 
   Stream<List<SecurityAlert>> _watchAlerts() {
