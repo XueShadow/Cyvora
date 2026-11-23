@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'supabase' => [
+        'url' => env('SUPABASE_URL'),
+        'anon_key' => env('SUPABASE_ANON_KEY'),
+        'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
+        'timeout' => (int) env('SUPABASE_TIMEOUT', 5),
+        'connect_timeout' => (int) env('SUPABASE_CONNECT_TIMEOUT', 2),
+        'admin_password_reset_redirect' => env('SUPER_ADMIN_PASSWORD_RESET_REDIRECT_URL'),
+    ],
+
 ];

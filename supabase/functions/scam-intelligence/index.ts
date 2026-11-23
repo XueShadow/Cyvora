@@ -411,13 +411,15 @@ function hasTrustedReviewRole(user: {
   app_metadata?: Record<string, unknown>;
 }): boolean {
   return user.app_metadata?.role === "moderator" ||
-    user.app_metadata?.role === "admin";
+    user.app_metadata?.role === "admin" ||
+    user.app_metadata?.role === "super_admin";
 }
 
 function hasTrustedAdminRole(user: {
   app_metadata?: Record<string, unknown>;
 }): boolean {
-  return user.app_metadata?.role === "admin";
+  return user.app_metadata?.role === "admin" ||
+    user.app_metadata?.role === "super_admin";
 }
 
 function isUuid(value: unknown): value is string {

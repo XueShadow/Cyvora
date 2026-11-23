@@ -1,71 +1,139 @@
 # Cyvora Super Admin panel
 
-This Laravel application is the intended Super Admin panel for Cyvora. The
-current codebase is still a Laravel scaffold: it does not yet implement admin
-authentication, roles/permissions, dashboard routes, or a Supabase integration.
-Do not treat the absence of these features as meaning the component is
-unnecessary, and do not connect production user data until the authorization
-model and integration boundary are implemented and tested.
+The Laravel 13 application in this directory is Cyvora's privileged,
+server-rendered Super Admin panel. Flutter remains the regular-user client;
+Supabase remains the shared authentication, database, Row Level Security, and
+Edge Function backend. See the [architecture map](../docs/CYVORA_ARCHITECTURE.md).
 
-See the [repository architecture](../docs/CYVORA_ARCHITECTURE.md),
-[security audit](../docs/CYVORA_SECURITY_AUDIT.md), and
-[production readiness](../docs/CYVORA_PRODUCTION_READINESS.md).
+## What is implemented
 
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+- Separate `/admin` sign-in, sign-out, Supabase password recovery, and MFA
+  step-up for accounts with a verified factor.
+- Four server-assigned roles: `super_admin`, `admin`, `moderator`, and
+  `support_admin`. The panel trusts only Supabase `app_metadata.role`; regular
+  user-editable metadata and public registration cannot grant privileges.
+- Supabase role and suspension revalidation on each authenticated panel
+  request, encrypted access/refresh tokens in the Laravel session, CSRF
+  protection, security headers, and named request throttles.
+- Authorized dashboard metrics, paginated user/family/scan/report views,
+  privacy-limited family security summaries, trusted-intelligence moderation,
+  provider history, global/provider usage counters, security events, and
+  append-only administrative audit records.
+- User suspension/reactivation and a separately reviewed account-deletion
+  workflow. Destructive operations require confirmation; deletion execution
+  is restricted to an independent Super Admin reviewer.
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+The panel intentionally does not display private message content, invitation
+tokens, authentication tokens, AI secrets, per-user usage, or unredacted family
+communications. Provider history and request counts are not live connectivity
+checks, billing estimates, or configuration controls. Unsupported data is
+shown as unavailable rather than fabricated.
 
-## About Laravel
+## Local setup
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Requirements: PHP 8.3+, Composer, and a configured Laravel database/session
+store. From this directory:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```powershell
+composer install
+Copy-Item .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Set the following server-only values in `.env`:
 
-## Contributing
+```dotenv
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
+SUPER_ADMIN_PASSWORD_RESET_REDIRECT_URL=https://admin.example.com/admin/password/reset
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Use the production host's secure secret store for the service-role key. Never
+put it in Vite variables, Blade output, Flutter configuration, source control,
+or a browser request. Production requires HTTPS for `SUPABASE_URL`; local
+development may use a local Supabase HTTP URL. Set `APP_DEBUG=false`, use HTTPS,
+and set `SESSION_SECURE_COOKIE=true` in production. Configure a durable,
+private Laravel session/cache store; sessions contain encrypted Supabase
+tokens. Add the password-reset callback to Supabase Auth's allowed redirect
+URLs.
 
-## Code of Conduct
+The Laravel database is used for Laravel's own framework state and sessions;
+Cyvora application data remains in Supabase. Run Laravel's migrations against
+the configured Laravel database:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```powershell
+php artisan migrate
+```
 
-## Security Vulnerabilities
+## Supabase deployment and first administrator
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Review the pending SQL against the target environment, apply the migrations in
+order (including `202611230002_super_admin_panel.sql`), and deploy the
+`scam-intelligence` Edge Function revision that recognizes `super_admin`.
+Complete this in a staging project first. Neither a successful Laravel test
+run nor a local route list proves that a Supabase migration or Edge Function
+has been applied to a remote project.
 
-## License
+Create and verify the first administrator through the trusted provisioning
+path. The account must already exist in Supabase Auth and have a confirmed
+email:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```powershell
+php artisan admin:provision admin@example.com super_admin
+```
+
+Only a trusted operator with access to the server-side service-role key should
+run this command. Subsequent role assignment is available to Super Admins in
+the panel. Do not assign roles through `user_metadata`, client-side settings,
+or Flutter.
+
+## Role boundaries
+
+| Role | Scope |
+|---|---|
+| `super_admin` | Full panel access, administrator role management, and reviewed deletion execution |
+| `admin` | Operational management, moderation, analytics, audit/security review, and deletion requests |
+| `moderator` | Scam-intelligence review only |
+| `support_admin` | Read-only user directory |
+
+The exact permissions are enforced server-side in
+[`AdminRole`](app/Admin/AdminRole.php). Hiding a navigation item is not the
+authorization boundary; each protected route checks the permission again.
+Trusted-intelligence decisions still go through the existing Supabase Edge
+Function and its reviewer/evaluation/release gates. Dataset reads use the
+administrator's user JWT and Supabase RLS rather than the service role.
+
+## Data and deployment limits
+
+- Supabase SQL, RLS behavior, Auth administrative calls, and Edge Function
+  operations require staging/live integration verification. They have not been
+  verified against a deployed project by the repository's Laravel test suite.
+- Provider status is historical only. Provider configuration/secrets must be
+  managed through the backend deployment secret process; Laravel does not
+  retrieve or expose them.
+- Usage screens read the existing global and provider daily counters. They do
+  not claim billing, subscriptions, per-user quotas, or user-level usage.
+- Scan and family screens expose metadata and aggregates only, not private
+  message bodies or alert text.
+- Supabase access JWTs already issued to a user are governed by the project's
+  JWT lifetime. A role change immediately blocks subsequent Laravel panel
+  requests through server-side role revalidation, but deployments should use
+  an appropriately short Auth JWT lifetime and revoke relevant sessions when
+  demoting a compromised administrator.
+
+## Verification
+
+```powershell
+vendor/bin/pint --test
+php artisan test --compact
+php artisan route:list --path=admin
+```
+
+Automated Laravel tests use HTTP fakes. Before production, add/perform staging
+verification for SQL privileges and append-only behavior, RLS with role
+separation, Auth/MFA, Edge Function reviewer gates, failure handling, and
+administrative audit events.

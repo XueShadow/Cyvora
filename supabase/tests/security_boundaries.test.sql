@@ -2,7 +2,7 @@
 -- All fixture data is rolled back at the end of this file.
 begin;
 
-select plan(13);
+select plan(14);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at
@@ -37,6 +37,14 @@ values
     'authenticated',
     'authenticated',
     'security-invitee@example.test',
+    '',
+    now()
+  ),
+  (
+    '10000000-0000-0000-0000-000000000005',
+    'authenticated',
+    'authenticated',
+    'security-audit-actor@example.test',
     '',
     now()
   );
@@ -207,6 +215,29 @@ select is(
     where user_id = '10000000-0000-0000-0000-000000000004'),
   0::bigint,
   'deleting a user cascades family membership'
+);
+
+set local role service_role;
+insert into public.admin_audit_logs (
+  actor_id, actor_role, action, target_type, target_id, outcome, request_id
+)
+values (
+  '10000000-0000-0000-0000-000000000005',
+  'admin',
+  'test.account.delete',
+  'admin_account',
+  '10000000-0000-0000-0000-000000000005',
+  'succeeded',
+  '40000000-0000-0000-0000-000000000005'
+);
+reset role;
+delete from auth.users
+ where id = '10000000-0000-0000-0000-000000000005';
+select is(
+  (select actor_id from public.admin_audit_logs
+    where request_id = '40000000-0000-0000-0000-000000000005'),
+  '10000000-0000-0000-0000-000000000005'::uuid,
+  'deleting an administrator does not mutate immutable audit records'
 );
 set local role service_role;
 

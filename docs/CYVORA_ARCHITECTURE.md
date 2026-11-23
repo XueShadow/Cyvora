@@ -1,9 +1,9 @@
 # Cyvora architecture map
 
-**Audit date:** 2026-11-17
-**Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22`
-**Scope:** Read-only architecture inspection; no application code or production
-configuration was changed.
+**Updated:** 2026-11-23
+**Scope:** Repository architecture and current implementation boundaries.
+Remote Supabase deployment state, credentials, and live provider connectivity
+have not been verified.
 
 ## System map
 
@@ -18,14 +18,10 @@ Flutter mobile client
 
 Supabase Edge Functions
   ├─ scam-intelligence
-  │    ├─ deterministic scam-pattern and indicator analysis
-  │    ├─ DNS/TLS and optional URL-reputation checks
-  │    ├─ optional AI provider routing
+  │    ├─ scam analysis and optional AI provider routing
   │    ├─ scan persistence and assistant chat
-  │    └─ reviewed intelligence submission/release operations
-  └─ family-invitations
-       ├─ invite, revoke, accept
-       └─ service-role database operations after bearer-token/MFA checks
+  │    └─ trusted intelligence review/evaluation/release gates
+  └─ family-invitations (family invite lifecycle)
 
 Supabase PostgreSQL
   ├─ application data and Row Level Security policies
@@ -33,8 +29,11 @@ Supabase PostgreSQL
   ├─ invitation and scan RPCs
   └─ versioned migrations
 
-Laravel 13
-  └─ intended Cyvora Super Admin panel; current code is scaffold-only
+Laravel 13 Super Admin panel
+  ├─ Supabase Auth sign-in, MFA step-up, and role revalidation
+  ├─ server-only privileged views and Auth admin operations
+  ├─ user-JWT/RLS dataset reads and trusted Edge Function moderation calls
+  └─ append-only administrative audit and deletion workflows
 
 GitHub Actions
   ├─ CI: Flutter dependency check, analysis, widget tests, Android debug APK
@@ -47,25 +46,31 @@ GitHub Actions
 
 ### Cross-component communication
 
-The diagram distinguishes implemented traffic from the intended but
-unimplemented Super Admin integration. A dashed arrow means no application
-authentication, API client, or data path was found in the Laravel source.
+Laravel is a separate, server-rendered administrator client. Its service-role
+credential is used only server-side for narrowly scoped administrative reads,
+Auth management, and audit/workflow storage. Trusted-intelligence reads use an
+administrator user JWT and RLS; review and release operations call the existing
+Edge Function.
 
 ```mermaid
 flowchart LR
-  admin[Super Admin operator] -->|intended access; login not implemented| laravel[Laravel 13 panel]
+  admin[Super Admin operator] -->|HTTPS, CSRF, Laravel session| laravel[Laravel 13 panel]
   user[Regular Cyvora user] --> flutter[Flutter mobile app]
-  flutter -->|user authentication| auth[Supabase Auth]
-  flutter -->|scan and family requests| edge[Supabase Edge Functions]
-  flutter -->|user-scoped queries| db[(Supabase PostgreSQL with RLS)]
-  edge -->|privileged server-side operations| db
-  laravel -.->|no implemented integration found| supabase[Supabase]
+  flutter -->|user sign-in and MFA| auth[Supabase Auth]
+  flutter -->|user JWT, RLS-scoped requests| db[(Supabase PostgreSQL with RLS)]
+  flutter -->|user JWT| edge[Supabase Edge Functions]
+  laravel -->|Auth API: sign-in, refresh, MFA| auth
+  laravel -->|service role, server-side only: admin views, audit, Auth management| adminDb[(Restricted admin views and workflows)]
+  laravel -->|admin user JWT + RLS| db
+  laravel -->|admin user JWT; reviewer gates retained| edge
+  edge -->|validated business operations| db
 ```
 
-Laravel is an important intended system component, but it currently has no
-application routes beyond the public welcome page, no admin authentication or
-authorization, and no Supabase client or data connection. The dashed edge
-must not be read as an implemented service-role connection.
+Supabase remains the shared application backend. Laravel does not replace
+Flutter authorization, database RLS, or Edge Function business rules. It does
+not send the service-role key to a browser or mobile client. Role values are
+assigned in Supabase `app_metadata` by trusted server/CLI operations; editable
+`user_metadata` is not an authorization source.
 
 ### Flutter
 
@@ -110,27 +115,35 @@ Both retain `com.example` identifiers. They were not changed because
 production identity must be confirmed by the owner first. iOS build and
 signing were not tested on this Windows host.
 
-### Laravel
+### Laravel Super Admin panel
 
-`laravel/` is the intended Cyvora Super Admin panel. The current implementation
-is a Laravel 13 scaffold with a default root welcome route and example tests;
-it has no admin login, user/role model, privileged routes, dashboard data
-source, or Supabase client. No direct Flutter-to-Laravel or Laravel-to-Supabase
-integration exists in the inspected source. The component is not classified as
-unused; it is a security-critical, incomplete part of the target architecture.
+`laravel/` implements separate administrator authentication, role/permission
+checks, request throttles, encrypted token storage, per-request role and
+suspension revalidation, privacy-limited dashboard/data views, moderation
+calls, and privileged-action audit logging. The Supabase service-role
+credential remains in server configuration. The panel deliberately omits
+private scan content, family communications, invite secrets, and AI secrets.
+Setup and role details are in [`laravel/README.md`](../laravel/README.md).
 
-## Assessment
+The repository includes migration
+`202611230002_super_admin_panel.sql` for restricted admin views, append-only
+audit logs, deletion requests, and trusted-intelligence reviewer policy
+updates. The `scam-intelligence` function recognizes `super_admin` without
+removing its reviewer separation and dataset release checks. Migration
+application, remote Auth configuration, Edge Function deployment, and
+end-to-end behavior against a Supabase project remain unverified.
 
-- The existing Flutter + Supabase architecture is coherent for the current
-  client and server-side analysis flows; a rewrite is not indicated.
+## Current assessment
+
+- Flutter + Supabase remains the regular-user application architecture; no
+  redesign is indicated.
 - `DashboardRepository` is a useful data boundary, but
   `dashboard_screen.dart` and `dashboard_repository.dart` carry many unrelated
   features and are large. Incremental feature-level extraction could improve
   maintainability after the higher-priority deployment and verification gaps
   are resolved.
-- The Super Admin responsibility for Laravel is confirmed, but the
-  authentication, authorization, administrative operations, and Supabase
-  integration are not implemented.
+- Laravel is the security-critical Super Admin system; its implementation and
+  deployment must be verified independently from the Flutter app.
 - CI validates local/client code and mocked/static backend behavior. It does
   not run PostgreSQL migrations, RLS integration tests, deployed Edge Function
   tests, live provider calls, iOS builds, or device notification tests.
@@ -141,7 +154,7 @@ unused; it is a security-critical, incomplete part of the target architecture.
 
 ## Follow-up — 2026-11-23
 
-The current worktree changes scan-history retention. The repository no longer
+The 2026-11-23 worktree changes scan-history retention. The repository no longer
 deletes records older than 120 days during history reads; migration
 `202611230001_preserve_scan_history.sql` cancels the scheduled cleanup and
 drops its function. The privacy notice now describes retention until the user
@@ -157,7 +170,11 @@ unverified. Build and test results are recorded in
 [CYVORA_TEST_RESULTS.md](CYVORA_TEST_RESULTS.md); no signing identity was
 changed.
 
-### Laravel Super Admin audit — 2026-11-23
+### Historical pre-implementation Laravel audit — 2026-11-23
+
+The findings in this subsection describe the scaffold before the Super Admin
+implementation above; they are retained as audit history and are superseded
+by the current architecture description.
 
 The product owner confirms Laravel's intended role is Cyvora's Super Admin
 panel. Source and runtime route inspection show that the implementation is
