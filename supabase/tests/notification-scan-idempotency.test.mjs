@@ -6,6 +6,10 @@ const migration = readFileSync(
   new URL("../migrations/202611170005_notification_scan_idempotency.sql", import.meta.url),
   "utf8",
 );
+const initialLeaseFix = readFileSync(
+  new URL("../migrations/202611170007_notification_scan_reservation_initial_lease.sql", import.meta.url),
+  "utf8",
+);
 const handler = readFileSync(
   new URL("../functions/scam-intelligence/index.ts", import.meta.url),
   "utf8",
@@ -39,6 +43,28 @@ test("notification reservations bind a user-scoped request key to a content fing
   assert.match(migration, /request_fingerprint <> target_request_fingerprint/i);
   assert.match(migration, /pg_cron is required to enforce notification scan idempotency retention/i);
   assert.match(migration, /cron\.schedule\([\s\S]*delete-expired-notification-scan-idempotency/i);
+});
+
+test("the forward migration returns the newly inserted reservation lease", () => {
+  const start = initialLeaseFix.indexOf(
+    "create or replace function public.reserve_notification_scan(",
+  );
+  const end = initialLeaseFix.indexOf(
+    "revoke all on function public.reserve_notification_scan",
+    start,
+  );
+  const reservation = initialLeaseFix.slice(start, end);
+
+  assert.ok(start >= 0);
+  assert.ok(end > start);
+  assert.match(
+    reservation,
+    /on conflict \(user_id, request_id\) do nothing\s+returning \* into existing;/i,
+  );
+  assert.match(
+    reservation,
+    /if found then[\s\S]*'status', 'reserved'[\s\S]*'lease_token', existing\.lease_token/i,
+  );
 });
 
 test("recording a reserved notification scan saves the result atomically", () => {

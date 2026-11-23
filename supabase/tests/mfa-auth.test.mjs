@@ -18,6 +18,27 @@ test('privileged accounts without a verified factor must enroll first', () => {
   assert.equal(requiresMfaChallenge(user, tokenWithAal('aal1')), true);
 });
 
+test('every privileged role requires enrollment even when the token is AAL2', () => {
+  for (const role of ['admin', 'moderator', 'support_admin']) {
+    const user = { app_metadata: { role }, factors: [] };
+
+    assert.equal(
+      mfaBlockReason(user, tokenWithAal('aal1')),
+      'enrollment_required',
+    );
+    assert.equal(
+      mfaBlockReason(user, tokenWithAal('aal2')),
+      'enrollment_required',
+    );
+  }
+});
+
+test('client-controlled user metadata does not grant privileged status', () => {
+  const user = { user_metadata: { role: 'super_admin' }, factors: [] };
+
+  assert.equal(mfaBlockReason(user, tokenWithAal('aal1')), null);
+});
+
 test('privileged accounts with a verified factor require AAL2', () => {
   const user = {
     app_metadata: { role: 'moderator' },

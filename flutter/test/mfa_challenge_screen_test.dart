@@ -4,6 +4,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cyvora_mobile/mfa_challenge_screen.dart';
 
 void main() {
+  testWidgets('a privileged account without a verified factor stays blocked', (
+    WidgetTester tester,
+  ) async {
+    var requestedCode = false;
+    var didVerify = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MfaChallengeScreen(
+          factors: const [],
+          onRequestCode: (factorId) async {
+            requestedCode = true;
+            return 'challenge';
+          },
+          onVerifyCode: (factorId, challengeId, code) async {
+            didVerify = true;
+          },
+          onVerified: () {},
+          onSignOut: () async {},
+        ),
+      ),
+    );
+
+    expect(
+      find.textContaining('no verified factor is available'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('verify-login-mfa')), findsNothing);
+    expect(requestedCode, isFalse);
+    expect(didVerify, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('TOTP sign-in prompts for an authenticator app code', (
     WidgetTester tester,
   ) async {
