@@ -115,6 +115,9 @@ administrator's user JWT and Supabase RLS rather than the service role.
 - Provider status is historical only. Provider configuration/secrets must be
   managed through the backend deployment secret process; Laravel does not
   retrieve or expose them.
+- No system-wide settings writer or live notification feed is exposed because
+  the inspected application has no supported admin settings/event contract.
+  Secret and configuration changes remain deployment-managed.
 - Usage screens read the existing global and provider daily counters. They do
   not claim billing, subscriptions, per-user quotas, or user-level usage.
 - Scan and family screens expose metadata and aggregates only, not private
