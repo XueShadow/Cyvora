@@ -34,25 +34,12 @@ between confirmed findings and unverified risks.
 
 ## Laravel Super Admin review — 2026-11-23
 
-The owner confirms Laravel is the intended Super Admin panel. The current
-Laravel app remains a scaffold with no admin login, role/permission model,
-protected admin routes, dashboard, or Supabase integration. There is no
-confirmed exploitable vulnerability in the reviewed app code, but the absence
-of these controls means no privileged administrative action should be exposed
-to production data yet.
-
-One narrow hardening change was applied to `laravel/config/session.php`:
-session cookies default to `Secure` when `APP_ENV=production`, while local
-development remains compatible with HTTP and `SESSION_SECURE_COOKIE` can
-still explicitly override the default. Artisan checks confirmed local=false,
-production=true, and explicit false override. No admin authentication,
-authorization, database integration, or user/family-management functionality
-was invented.
-
-`php artisan route:list` showed five routes and no admin/login/logout routes.
-Laravel Boost's development browser-log endpoint appears without middleware;
-production inclusion was not checked, and `laravel/boost` is a development
-dependency. Ensure the production install excludes development dependencies
-and confirm the route is absent. The two Laravel tests do not test admin
-security. Role-separated tests remain a blocker until the owner defines the
-identity and permission model.
+This historical review inspected a branch snapshot that did not include the
+Laravel implementation on `fix/mlkit-release-crash`. Its scaffold-only route
+inventory and test conclusions do not describe the current integration
+branch. Laravel is the official, separate Super Admin panel and is implemented
+with protected routes, role/permission checks, server-side Supabase access,
+and focused tests. Production Composer mode, hosted configuration, and
+deployed route inventory remain unverified. The session-cookie `Secure`
+default remains a defense-in-depth setting, not a substitute for deployment
+verification.

@@ -501,8 +501,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('Disable message monitoring?'),
         content: const Text(
           'Cyvora will stop collecting notification previews and delete any '
-          'pending previews stored on this device. Existing scan history is '
-          'not affected.',
+          'pending previews stored on this device. Scans already submitted '
+          'for analysis cannot be recalled and may still finish. Existing scan '
+          'history is not affected.',
         ),
         actions: [
           TextButton(

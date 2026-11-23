@@ -75,9 +75,12 @@ include the app origin in **Authentication → URL Configuration → Redirect UR
 The repository-level GitHub Actions workflow at
 [`../.github/workflows/android-release.yml`](../.github/workflows/android-release.yml)
 builds a signed Android APK for direct installation and an Android App Bundle
-for Google Play, then attaches both files to a GitHub Release.
+for Google Play, then creates a draft GitHub Release.
 
-Before the workflow can run, add these repository secrets in GitHub:
+Before the workflow can run, a repository owner must create protected GitHub
+Environments named `android-signing` and `android-publish`, add required
+reviewers, and restrict deployments to the protected default branch and stable
+release tags. Put signing secrets only in the `android-signing` Environment:
 
 - `ANDROID_KEYSTORE_BASE64`: Base64-encoded contents of the Android release keystore.
 - `KEYSTORE_PASSWORD`: Keystore password.
@@ -107,11 +110,17 @@ To copy the encoded keystore without printing it in the terminal:
 ) | Set-Clipboard
 ```
 
-In the repository's **Settings → Secrets and variables → Actions**, create
+In **Settings → Environments → android-signing**, create
 `ANDROID_KEYSTORE_BASE64` by pasting the clipboard value, `KEYSTORE_PASSWORD`
 and `KEY_PASSWORD` with the passwords you chose, and `KEY_ALIAS` with
-`cyvora-release`. The workflow writes `android/key.properties` automatically;
-never commit the keystore or its passwords.
+`cyvora-release`. Do not create repository-level or organization-level copies
+of these secrets. Configure `android-signing` reviewers to approve the signing
+job and `android-publish` reviewers to approve draft-release creation. Restrict
+both Environments to the default branch and stable `v*` tags; configure a tag
+ruleset that limits creation and updates to release managers. The workflow
+writes `android/key.properties` automatically; never commit the keystore or
+its passwords. These protections are owner settings and are not verified just
+because the workflow references the Environment names.
 
 Release checklist:
 
@@ -127,8 +136,8 @@ Release checklist:
    ```
 
    The workflow also supports manual dispatch with a `vX.Y.Z` tag name.
-4. Wait for the Android GitHub Actions workflow to succeed, then download the
-   signed APK/AAB and checksum files from the GitHub Release.
+4. Wait for the Android GitHub Actions workflow to succeed, inspect the draft
+   release, signatures, and checksums, then publish it manually.
 
 The tag must match the `X.Y.Z` version. The workflow checks both the tag and
 increasing build number before publishing. Use the signed APK from the GitHub
@@ -137,6 +146,9 @@ development and are signed with a debug key; do not distribute them. Local
 release APK/AAB builds require a valid `android/key.properties` and release
 keystore.
 
+The workflow validates the tag commit against the default branch and checks
+out that exact validated commit. The build/signing job has no publish
+permission; only the separately approved publish job has `contents: write`.
 The workflow verifies the APK/AAB archive and signatures, the production
 certificate, package ID, Android API levels, native ABIs, required permissions,
 notification-listener declaration, tag/version match, and increasing version

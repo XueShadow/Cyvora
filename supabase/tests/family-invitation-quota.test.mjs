@@ -14,6 +14,10 @@ const schemaMigration = readFileSync(
   new URL("../migrations/202606120001_dashboard_mvp.sql", import.meta.url),
   "utf8",
 );
+const authCompatibilityMigration = readFileSync(
+  new URL("../migrations/202611170006_family_invite_auth_compat.sql", import.meta.url),
+  "utf8",
+);
 
 test("family invitation quota serializes the count and insert per family", () => {
   const lockPosition = migration.indexOf("pg_advisory_xact_lock");
@@ -59,4 +63,13 @@ test("family invitation consumption locks rows and rejects expired or reused tok
   assert.match(consumeFunction, /for update/i);
   assert.match(consumeFunction, /update public\.family_invites[\s\S]*accepted_at = now\(\)/i);
   assert.match(handler, /rpc\(\s*'consume_family_invite'/);
+});
+
+test("family invite verification supports current and legacy Supabase auth schemas", () => {
+  assert.match(authCompatibilityMigration, /to_jsonb\(u\) ->> 'email_confirmed_at'/i);
+  assert.match(authCompatibilityMigration, /to_jsonb\(u\) ->> 'confirmed_at'/i);
+  assert.match(
+    authCompatibilityMigration,
+    /revoke all on function public\.consume_family_invite\(text, uuid\)[\s\S]*to service_role;/i,
+  );
 });

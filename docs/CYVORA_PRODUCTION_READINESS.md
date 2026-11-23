@@ -1,17 +1,18 @@
 # Cyvora production readiness
 
 **Assessment date:** 2026-11-23
-**Branch/commit inspected:** `fix/mlkit-release-crash` / `6ab63fe`
+**Branch/commit inspected:** `integration/production-hardening` / merge in progress
 **Verdict:** **NOT PRODUCTION READY**
 **Production changes:** None
 
 ## Summary
 
 The Flutter + Supabase architecture is intact, and Laravel is the intended
-Super Admin application. Current local code includes mandatory MFA enrollment
-for privileged roles, AAL2 checks across Laravel/Edge Functions/RLS, and
-reauthentication before sensitive panel mutations. Local Flutter, Node, and
-Laravel tests pass, and the Android debug APK builds.
+Super Admin application. The integration branch retains mandatory MFA
+enrollment for privileged roles and AAL2 checks across Laravel, Edge
+Functions, and RLS. Full Flutter and Supabase Node suites, release-policy
+tests, and the Android debug build pass. PostgreSQL integration tests have not
+been run after the branch merge.
 
 These results do not establish production readiness. Supabase migrations and
 RLS have not been run against an isolated database, deployed Edge Function
@@ -25,18 +26,23 @@ iOS/device testing is unavailable on this Windows host.
 
 | Area | Status | Evidence / remaining work |
 |---|---|---|
-| Flutter client and Auth | IMPLEMENTED; locally VERIFIED | Analysis and 67 widget/unit tests pass. No physical-device/iOS verification. |
-| Laravel Super Admin | IMPLEMENTED; locally VERIFIED | Separate Auth, four server-assigned roles, route permissions, mandatory MFA, sensitive-action reauthentication, privacy-limited views, audit/deletion workflows. 28 Laravel tests pass using HTTP fakes. |
-| Supabase role/MFA boundary | SOURCE IMPLEMENTED; NOT DATABASE-VERIFIED | Migration `202611230003_require_mfa_for_admins.sql` updates the restrictive MFA function; Edge Function helper rejects factorless/AAL1 privileged calls. SQL/RLS and hosted Auth behavior are not tested. |
-| Database/RLS/migrations | NOT VERIFIED | pgTAP suite prepared, but Supabase CLI/PostgreSQL runtime unavailable. Do not infer deployment from source files. |
-| Edge Functions | SOURCE TESTED; DEPLOYMENT UNKNOWN | 98 Node tests cover mocked/static behavior. Deno runtime, hosted function revisions, and live Auth/MFA claims were not verified. |
+| Flutter client and Auth | IMPLEMENTED; LOCALLY VERIFIED | Flutter analysis and 70 tests pass. Physical-device and iOS verification remain. |
+| Laravel Super Admin | IMPLEMENTED; BASELINE LOCALLY VERIFIED | Separate Auth, four server-assigned roles, route permissions, mandatory MFA, reauthentication, privacy-limited views, audit/deletion workflows. The previously recorded Laravel test run has not been repeated after the merge. |
+| Supabase role/MFA boundary | SOURCE IMPLEMENTED; NOT DATABASE-VERIFIED | Privileged enrollment and AAL2 checks remain in the Edge helper and RLS migration. SQL/RLS and hosted Auth behavior are not tested in this integration. |
+| Database/RLS/migrations | NOT VERIFIED | Forward migration `202611170007` corrects initial reservations. PostgreSQL/pgTAP could not run because Docker's daemon is unavailable. |
+| Edge Functions | SOURCE TESTED; DEPLOYMENT UNKNOWN | 102 Node tests pass, including MFA and idempotency regressions. Deno runtime, hosted function revisions, and live Auth/MFA claims were not verified. |
 | AI and URL providers | PARTIALLY IMPLEMENTED; LIVE STATE UNKNOWN | Consent gates, server-side secrets, minimization, budgets, fallback, and failure handling exist in source. No provider keys, live connectivity, billing limits, or provider retention were checked. |
 | Family Protection | IMPLEMENTED IN SOURCE; RLS NOT VERIFIED | Invitation lifecycle, family ownership boundaries, admin metadata views, and audit handling exist. Cross-account behavior needs staging database tests. |
 | Scam intelligence | IMPLEMENTED IN SOURCE; RELEASE GATES NOT LIVE-VERIFIED | Existing reviewer separation and dataset release checks remain in the Edge Function/database path. Hosted policy/function state is unknown. |
 | Android notification monitoring | IMPLEMENTED; DEVICE TESTING REQUIRED | Consent-gated encrypted local queue, event-scoped scan idempotency, and retention are in source. Permission revocation, key recovery, process death, reboot, and OEM behavior need device tests; the idempotency SQL/pgTAP test has not run. |
-| Android release/signing | BLOCKED | Prior local APK/AAB checks found a signer mismatch against the expected production identity. Protected CI signing secrets and GitHub environments were not accessed. |
+| Android release/signing | BLOCKED | 15 release-policy tests and the Android debug build pass. Prior local APK/AAB checks found a signer mismatch against the expected production identity. Protected CI signing secrets and GitHub environments were not accessed. |
 | iOS | BLOCKED | Xcode/signing/provisioning are unavailable on Windows; no iOS device test was run. Existing `com.example` identifiers require owner confirmation before release. |
 | Production configuration and operations | NOT VERIFIED | No live credentials or infrastructure settings were inspected or changed. |
+
+The security branch's test documents contain earlier reports for Flutter,
+Node, release policy, and disposable-database suites. They were not
+independently reproduced in this integration pass; see
+[current test results](CYVORA_TEST_RESULTS.md).
 
 ## Release blockers
 
@@ -76,6 +82,9 @@ was changed during this audit.
 ## Related documentation
 
 - [Full security audit](CYVORA_FULL_SECURITY_AUDIT.md)
+- [Complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md)
+- [Full code audit](CYVORA_FULL_CODE_AUDIT.md)
+- [Security audit](CYVORA_SECURITY_AUDIT.md)
 - [Architecture map](CYVORA_ARCHITECTURE.md)
 - [Super Admin guide](CYVORA_SUPER_ADMIN_GUIDE.md)
 - [Supabase integration](CYVORA_SUPABASE_INTEGRATION.md)

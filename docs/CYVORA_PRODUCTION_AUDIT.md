@@ -1,5 +1,23 @@
 # Cyvora Production Readiness Audit
 
+> **Current status addendum:** The historical deployment and test statements
+> below describe the audit snapshot dated 2026-11-17 and are not current
+> hosted-state evidence. A subsequent local validation applied all 24
+> repository migrations through `202611170007`, passed 27 pgTAP assertions
+> and seven separate-session notification-reservation checks, and reapplied
+> migrations `202611170005`–`202611170007`. No hosted migration ledger,
+> production resource, live provider, or physical Android device was accessed
+> for that validation. See
+> [the current staging validation](CYVORA_STAGING_VALIDATION.md) and
+> [complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md).
+
+> **Integration note (2026-11-23):** This audit's Laravel status reflects its
+> historical baseline. The fix/integration branch contains the official Laravel
+> Super Admin panel; the panel is a separate, intentional system component.
+> Integration tests did not include PostgreSQL validation, and no hosted
+> deployment was accessed. See the [Super Admin guide](CYVORA_SUPER_ADMIN_GUIDE.md)
+> and [current test results](CYVORA_TEST_RESULTS.md).
+
 **Audit date:** 2026-11-17  
 **Repository:** `XueShadow/Cyvora`  
 **Pushed baseline:** `c8aab79` on `main`; migration 004 is the forward-only dedupe-order correction
@@ -46,7 +64,7 @@ Production readiness is not established. The local release build is intentionall
 | Scam detection and trusted intelligence | **PARTIALLY IMPLEMENTED** | Deterministic modules, evidence normalization, unavailable/unknown states, moderation, redaction, reviewed examples, dataset evaluation gates, and versioned snapshots are present. A 14-case synthetic English/Filipino/Taglish evaluation fixture passed locally (7 true positives, 7 true negatives); it is only a regression fixture, not evidence of real-world accuracy. |
 | AI providers | **PARTIALLY IMPLEMENTED** | Pushed code calls v2 reservation/completion RPCs for assistant chat and scam analysis, with daily budgets, cooldowns, HMAC deduplication, expiring leases, and a circuit breaker. The 89-test backend suite verifies mock reservation accounting, fallback and timeout paths, plus static SQL contracts. The scan reservation-ID defect is fixed in pushed code. Migration 004 carries the dedupe-order correction without rewriting migration 003. SQL transaction/concurrency behavior, database application, and live provider behavior remain unverified. |
 | URL reputation | **PASS for mocked tests** | Adapter request/response defects and local-host filtering were corrected in the preceding commit. Tests use mocked provider responses; live provider compatibility, pricing, and quotas were not tested. |
-| Laravel Super Admin | **NOT IMPLEMENTED** | The product owner confirms Laravel is the intended Super Admin panel. The current Laravel source remains a scaffold: `routes/web.php` serves the default welcome page, with no admin authentication, RBAC, dashboard, or Supabase integration. |
+| Laravel Super Admin | **IMPLEMENTED IN FIX/INTEGRATION; DEPLOYMENT NOT VERIFIED** | Laravel is the official, separate Super Admin panel. The scaffold-only finding applied to the historical audit baseline, not the current integration branch. See the Super Admin guide and test results. |
 
 ## Confirmed defects and changes
 

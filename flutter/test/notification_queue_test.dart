@@ -104,6 +104,32 @@ void main() {
     },
   );
 
+  test('an updated notification uses its distinct idempotency key', () async {
+    final update = PendingMessageNotification(
+      id: 'notification-1-update',
+      title: notification.title,
+      text: 'Your account was updated',
+      packageName: notification.packageName,
+      receivedAt: notification.receivedAt.add(const Duration(seconds: 1)),
+    );
+    final keys = <String>[];
+    final queue = PendingMessageNotificationQueue(
+      remove: (_) async {},
+      markCompleted: (_) async {},
+    );
+
+    await queue.scan(notification, (_, key) async {
+      keys.add(key);
+      return true;
+    });
+    await queue.scan(update, (_, key) async {
+      keys.add(key);
+      return true;
+    });
+
+    expect(keys, [notification.id, update.id]);
+  });
+
   test(
     'retries queue cleanup without re-running successful analysis',
     () async {
@@ -167,6 +193,57 @@ void main() {
 
     expect(keys, [notification.id, update.id]);
   });
+
+  test(
+    'a restarted queue reuses server idempotency after marker failure',
+    () async {
+      final persistedResults = <String, bool>{};
+      var requests = 0;
+      var providerAttempts = 0;
+      var persistedScans = 0;
+      final firstQueue = PendingMessageNotificationQueue(
+        remove: (_) async {},
+        markCompleted: (_) async {
+          throw StateError(
+            'Simulate interruption before local completion mark.',
+          );
+        },
+      );
+
+      await expectLater(
+        firstQueue.scan(notification, (content, key) async {
+          requests++;
+          if (persistedResults.containsKey(key)) return true;
+          providerAttempts++;
+          persistedResults[key] = true;
+          persistedScans++;
+          return true;
+        }),
+        throwsStateError,
+      );
+
+      final restartedQueue = PendingMessageNotificationQueue(
+        remove: (_) async {},
+        markCompleted: (_) async {},
+      );
+      final outcome = await restartedQueue.scan(notification, (
+        content,
+        key,
+      ) async {
+        requests++;
+        if (persistedResults.containsKey(key)) return true;
+        providerAttempts++;
+        persistedResults[key] = true;
+        persistedScans++;
+        return true;
+      });
+
+      expect(outcome, NotificationScanOutcome.completed);
+      expect(requests, 2);
+      expect(providerAttempts, 1);
+      expect(persistedScans, 1);
+    },
+  );
 
   test(
     'a restarted queue reuses server idempotency after marker failure',

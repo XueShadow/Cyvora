@@ -10,11 +10,12 @@ requests, or production database operations were used.
 | Check | Result | Scope and limitation |
 |---|---|---|
 | `flutter analyze --fatal-infos` | PASS | No analyzer issues. |
-| `flutter test --no-pub` | PASS — 64 tests | Includes notification queue success/failure, retry, duplicate suppression, durable completion-before-cleanup, and method-channel privacy controls. Does not execute Kotlin Keystore behavior. |
-| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | PASS — 90 tests | Mocked Edge/provider tests and migration source-contract checks. Does not execute PostgreSQL policies or migrations. |
+| `flutter test --no-pub` | PASS — 66 tests | Includes notification queue success/failure, retry, duplicate suppression, durable completion-before-cleanup, and method-channel privacy controls. Does not execute Kotlin Keystore behavior. |
+| `node --experimental-strip-types --test supabase/tests/*.test.mjs` | PASS — 96 tests | Mocked Edge/provider tests and migration source-contract checks. Does not execute PostgreSQL policies or migrations. |
 | `python -m unittest test_validate_android_release_ref test_validate_android_release test_android_release_workflow` from `flutter/scripts` | PASS — 15 tests | Temporary Git repositories and local workflow/artifact policy checks. No signing secrets or GitHub APIs. |
 | `flutter build apk --debug --no-pub` | PASS | Android debug APK built. Gradle/SDK warnings were emitted; no device install was performed. |
-| `supabase/tests/security_boundaries.test.sql` | PREPARED — 13 pgTAP assertions; NOT RUN | Supabase CLI, PostgreSQL, and Docker were unavailable. Use only a disposable local Supabase test stack. |
+| `supabase/tests/security_boundaries.test.sql` | PASS — 13 pgTAP assertions | Executed via `psql` against a disposable Supabase PostgreSQL 17.11.0.018 container after applying repository migrations. No hosted database was used. |
+| `supabase/tests/notification_scan_idempotency.test.sql` | PASS — 14 pgTAP assertions | Same disposable database; fixtures were rolled back. |
 | `dart pub audit` | UNAVAILABLE | The installed Dart SDK has no `pub audit` subcommand. |
 | Dependency advisory scans | NOT RUN | No `osv-scanner`, Trivy, Snyk, Grype, PHP, or Composer was available; Laravel has no npm lockfile. |
 | PHP/Laravel tests | BLOCKED | PHP and Composer unavailable. |
@@ -37,11 +38,14 @@ Set-Location ..\..
 node --experimental-strip-types --test supabase\tests\*.test.mjs
 ```
 
-For PostgreSQL tests, start a disposable local Supabase stack and run
-`supabase test db`. The test file wraps fixtures in a transaction and rolls
-them back. Do not direct it at production. It checks scan RLS, family access,
-cross-account writes, RPC execute permissions, invitation expiry and reuse,
-user-deletion cascade, and AI quota reservation/exhaustion.
+The SQL suites were run using direct `psql` against a disposable Supabase
+PostgreSQL 17.11.0.018 image after all repository migrations through
+`202611170007` were applied. The base image needed local-only Auth and Storage
+schema helpers; this was not a full `supabase start` / `supabase test db`
+run. The test files wrap fixtures in transactions and roll them back. Never
+direct them at production. They check scan RLS, family access, cross-account
+writes, RPC execute permissions, invitation expiry/reuse, user-deletion
+cascade, AI quota behavior, and notification idempotency.
 
 The pgTAP script does not create concurrent database sessions. True concurrent
 invitation acceptance, invitation quota contention, and AI reservation races

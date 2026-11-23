@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Test release ref policy
-        run: python3 flutter/scripts/test_validate_android_release_ref.py
+        run: python3 -m unittest discover -s flutter/scripts -p "test_*.py"
 
       - name: Validate release tag and protected-branch ancestry
         id: release_ref

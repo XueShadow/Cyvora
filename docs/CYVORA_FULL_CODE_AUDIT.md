@@ -1,5 +1,29 @@
 # Cyvora full code audit
 
+> **Current status update:** This report is the pre-remediation audit snapshot.
+> Release workflow hardening, encrypted/retained notification storage, queue
+> retry, and notification scan idempotency source changes have since been
+> added on `security/complete-production-hardening`. Repository migrations
+> through `202611170007` and both pgTAP suites have since passed locally on a
+> disposable Supabase PostgreSQL container; hosted staging and production
+> were not tested. The latest synthetic evaluation contains 26 cases across
+> six paired categories (13 TP, 13 TN, 0 FP/FN); it is still not a real-world
+> estimate. Seven independent-session notification reservation checks also
+> passed locally. Existing findings and counts below describe their original
+> baseline. See the
+> **Integration note (2026-11-23):** The fix branch implemented the official
+> Laravel Super Admin panel; the integrated branch retains it. The Laravel
+> finding and follow-up below describe earlier snapshots and are superseded
+> for current source status. The panel is an intentional separate
+> server-rendered client, not an unused or disconnected component. Current
+> implementation and test status are in
+> [the Super Admin guide](CYVORA_SUPER_ADMIN_GUIDE.md) and
+> [current test results](CYVORA_TEST_RESULTS.md).
+>
+> [current complete security audit](CYVORA_COMPLETE_SECURITY_AUDIT.md),
+> [remediation report](CYVORA_REMEDIATION_REPORT.md), and
+> [final checklist](CYVORA_FINAL_PRODUCTION_CHECKLIST.md).
+
 **Audit date:** 2026-11-17
 **Repository baseline:** `c8aab7970b30216a6477f6bd61486ce9d71c7a22` on `main`
 **Mode:** Audit only. No application source, production database, credentials,
@@ -57,7 +81,7 @@ See [the architecture map](CYVORA_ARCHITECTURE.md). In brief:
 | 4 | MEDIUM | **A queued preview can be lost when scanning fails.** `flutter/lib/dashboard/dashboard_screen.dart:_reviewPendingMessageNotifications` removes the selected item before calling `_analyze`. | A transient network/service error prevents retry from the pending queue. | Remove only after successful processing or explicit user discard; test failure and retry paths. |
 | 5 | MEDIUM | **Notification preview retention is bounded by count, not time.** `flutter/android/app/src/main/kotlin/com/example/cyvora_mobile/MessageNotificationListenerService.kt` stores title/text/package metadata in app-private preferences and caps the queue at 50; no time-based expiry or application-layer encryption was identified. | Sensitive previews may remain on-device until scanned or displaced. App-private storage is not equivalent to application-layer encryption. | Define a short TTL, explicit clear control, minimize stored fields, and evaluate Keystore-backed encryption against the threat model. |
 | 6 | MEDIUM | **Detection metrics are not production-quality evidence.** `supabase/tests/scam-evaluation.test.mjs` contains 14 synthetic cases and reports perfect fixture scores. | It cannot establish real-world precision, recall, F1, or false-positive rates across scam categories or language variants. | Build a moderator-reviewed, representative Filipino/Taglish and English dataset with a held-out split and release gates. |
-| 7 | HIGH | **The intended Laravel Super Admin panel is not implemented.** The product owner confirms its role; `laravel/routes/web.php` exposes only the default welcome route, with no admin login, RBAC, management dashboard, or Supabase integration. | The requested privileged administration workflows and their access controls cannot be used or tested. This is a major incomplete feature, not evidence that Laravel is unnecessary or an exploitable vulnerability. | Define the admin identity, roles, data access, and audit-log contract; then implement deny-by-default routes and role-separated tests before connecting sensitive data. |
+| 7 | HIGH — HISTORICAL; IMPLEMENTED ON FIX/INTEGRATION | **At the original audit baseline, the intended Laravel Super Admin panel was not implemented.** The product owner confirmed its role; the baseline route exposed only the default welcome page. | At that baseline, privileged administration workflows could not be used or tested. This was an incomplete feature, not evidence that Laravel was unnecessary. | Superseded: the fix/integration branch implements the official panel. Continue validating its authorization and deployed configuration; see the Super Admin guide and current test results. |
 | 8 | MEDIUM | **Integration test coverage is missing for production-critical controls.** `supabase/tests/*.test.mjs` uses mocks/static SQL checks; no PostgreSQL, separate-account RLS, family isolation, or live provider test ran. | Race conditions, schema drift, and deployment errors can pass local CI. | Add isolated PostgreSQL/Supabase integration tests and a staging deployment gate. |
 | 9 | LOW | **Large feature files concentrate unrelated UI and data access.** `flutter/lib/dashboard/dashboard_screen.dart` contains multiple screens and flows; `flutter/lib/dashboard/dashboard_repository.dart` covers many feature domains. | Changes are harder to isolate and review as the app grows. | Extract feature-level widgets/repositories incrementally after release blockers are addressed; no rewrite is recommended. |
 
@@ -130,22 +154,12 @@ readiness verdict remains **NOT PRODUCTION READY**.
 
 ### Laravel Super Admin follow-up — 2026-11-23
 
-The product owner confirms Laravel is the intended Super Admin panel. The
-route inventory (`php artisan route:list --json`) contains five routes, with
-no admin, login, or logout routes. The application exposes the framework
-welcome page and a development-only Boost browser-log route; no Laravel
-Supabase client or privileged data path was found. Laravel is therefore
-important but not implemented yet.
-
-The two passing Laravel tests exercise only scaffold behavior; they do not
-cover authentication, role separation, authorization, administrative data
-access, CSRF, audit logging, or Supabase integration. No role-separated test
-can establish access control until those features exist. The unauthenticated
-Boost route is conditional on development dependencies being present in a
-deployment; the production Composer install mode was not inspected.
-
-As a narrow defense-in-depth change, `laravel/config/session.php` now
-defaults the session cookie's `Secure` attribute on for `APP_ENV=production`
-while preserving the local default and explicit environment override. Artisan
-configuration checks passed for all three cases. This does not substitute for
-Super Admin authentication or authorization.
+This route inventory was performed against a branch snapshot that did not
+include the Laravel implementation on `fix/mlkit-release-crash`. Its five-route
+count and scaffold-only test description do not characterize the integrated
+source. The fix/integration branch contains the official Super Admin panel,
+including protected routes, authorization, server-side Supabase access, and
+focused tests; see the current guide and test results. Deployed Composer mode,
+hosted configuration, and live authorization remain unverified. The session
+cookie `Secure` default noted in the historical review remains a defense in
+depth and does not replace those controls.

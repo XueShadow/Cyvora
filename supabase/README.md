@@ -6,9 +6,22 @@ the centralized `scam-intelligence` and `family-invitations` functions.
 
 ## Local setup and secrets
 
-Install the Supabase CLI and Deno before running local Edge Function or database
-tests. Neither tool was available in the audit environment, so live function,
-RLS, and family integration behavior remains unverified.
+Docker Desktop 4.90.0, Engine 29.7.2, Compose 5.5.1, and Ubuntu WSL 2
+integration were verified on 2026-11-17. The Supabase CLI is not global, but
+`npx.cmd --yes supabase@3.1.0` works. The local stack is stopped: its project
+volumes/network remain, but the CLI reports the database container missing.
+No reset, volume deletion, or stack startup was performed because that project
+may contain local data and host memory was low. Follow the
+[isolated local setup](../docs/SUPABASE_LOCAL_SETUP.md); see the
+[Docker environment audit](../docs/DOCKER_ENVIRONMENT_AUDIT.md).
+
+Repository migrations and both pgTAP suites were previously executed via
+direct `psql` against a disposable Supabase PostgreSQL 17.11.0.018 container;
+27 assertions passed. This verifies those tested migrations, RLS, and
+notification idempotency paths, but not the currently stopped stack,
+CLI orchestration, Auth/Storage service integration, Edge Function runtime,
+hosted staging, or production. The base database image needed test-only Auth
+and Storage schema helpers. See the [test results](../docs/CYVORA_TEST_RESULTS.md).
 
 [`supabase/.env.example`](.env.example) lists optional provider variable names
 with empty values. It is a reference only: do not put real keys in this file,
@@ -42,11 +55,13 @@ node --experimental-strip-types --test $testFiles
 ```
 
 These are local unit tests using synthetic examples, mocked providers, and
-static migration-contract checks; they do not execute migrations, test live
-provider behavior, exercise RLS, or verify concurrent requests against
-PostgreSQL. Use an isolated local or staging Supabase project with separate
-test accounts for authorization and family-isolation tests. Never use
-production credentials for automated tests.
+static migration-contract checks; they do not test live provider behavior or
+verify concurrent requests against PostgreSQL. The SQL suites under
+`supabase/tests/` use pgTAP and roll back their fixtures. For the standard
+workflow, run them with `supabase test db` against a disposable local stack.
+The latest local PostgreSQL run used direct `psql` as described above. Use
+only a disposable local or isolated staging project with separate test
+accounts. Never use production credentials for automated tests.
 
 ## Database and function deployment
 
@@ -60,3 +75,6 @@ deployment was performed in this audit.
 See [the production readiness report](../docs/CYVORA_PRODUCTION_READINESS.md)
 and [security notes](../docs/SECURITY.md) for outstanding verification and
 operational risks.
+The current security re-audit and staging procedures are documented in
+[`docs/CYVORA_COMPLETE_SECURITY_AUDIT.md`](../docs/CYVORA_COMPLETE_SECURITY_AUDIT.md)
+and [`docs/CYVORA_STAGING_VALIDATION.md`](../docs/CYVORA_STAGING_VALIDATION.md).

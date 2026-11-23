@@ -106,15 +106,20 @@ The production dashboard ledger was observed at
 `202611150006_scan_history_retention.sql` and `202611170001`–`202611170005`
 were not recorded as applied. Edge Function deployment revisions were not
 verified. This makes repository state and production database state different;
-no migration was run during this audit.
+no migration was run against a database during this integration. The security
+branch's prior reports describe disposable-database validation, but those
+results were not independently reproduced in this environment.
 
 ### Android and iOS
 
 Android uses a native `NotificationListenerService`, not the default-SMS-app
 role. It queues eligible notification title/text/package metadata in
-app-private preferences. Flutter exposes a user-initiated review list; the
-selected item is sent to the server only after the user chooses to scan it.
-This is not automatic background analysis. iOS uses the Flutter app and
+app-private AES/GCM-encrypted storage backed by Android Keystore, with
+1/7/30-day retention and clear controls. Flutter exposes a user-initiated
+review list; the selected item is sent to the server only after the user
+chooses to scan it. This is not automatic background analysis. No per-app
+exclusion setting or per-notification content-length cap was found. iOS uses
+the Flutter app and
 Supabase Auth callback URL scheme; no equivalent notification-listener
 implementation was identified.
 
@@ -123,7 +128,9 @@ reservation prevents duplicate scan persistence when the app retries after
 process loss, and replays the prior result; deleting scan history prevents an
 old pending notification from recreating it. Migration
 `202611170005_notification_scan_idempotency.sql` requires `pg_cron` for
-idempotency-record cleanup and has not been applied or database-tested.
+idempotency-record cleanup. The integration branch includes forward migration
+`202611170007_notification_scan_reservation_initial_lease.sql`; neither
+migration has been applied or database-tested in this integration.
 
 Configured identities differ: Android namespace/application ID
 `com.example.cyvora_mobile`; iOS bundle ID `com.example.cyvoraMobile`.

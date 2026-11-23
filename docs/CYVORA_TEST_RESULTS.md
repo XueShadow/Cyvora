@@ -1,10 +1,10 @@
 # Cyvora test results
 
 **Verification date:** 2026-11-23
-**Branch/commit baseline:** `fix/mlkit-release-crash` / `6ab63fe`
-**Scope:** Current worktree, including the mandatory-MFA hardening changes.
+**Integration branch:** `integration/production-hardening`
+**Scope:** Focused validation of the MFA and notification-reservation fixes. Earlier test counts below are from the fix-branch baseline, before this integration.
 
-## Local verification
+## Pre-integration baseline verification
 
 | Check | Result | Notes |
 |---|---|---|
@@ -29,12 +29,24 @@
 | iOS build/signing/device test | **BLOCKED** | Xcode/macOS is unavailable on this Windows host. |
 | Android release artifact identity | **BLOCKED** | A prior local APK/AAB check found the signer did not match the release validator's expected identity. Owner confirmation and matching protected signing configuration are required. |
 
-The specialist code review reported no additional confirmed vulnerability in
-the reviewed changes. The high-severity factorless-admin MFA gap identified
-during this audit was fixed in the current worktree and covered by local
-tests; the Supabase SQL/hosted behavior remains unverified. Notification scan
-retries now use a server-side idempotency lease and replay the saved result;
-that migration and its pgTAP test remain unverified against PostgreSQL.
+## Integration branch validation
+
+| Check | Result |
+|---|---|
+| `flutter analyze --fatal-infos` | **PASS** |
+| `flutter test --no-pub` | **PASS — 70 tests** |
+| `node --test supabase/tests/*.test.mjs` | **PASS — 102 tests** |
+| `python -m unittest discover -s flutter/scripts -p "test_*.py"` | **PASS — 15 tests** |
+| `flutter build apk --debug --no-pub` | **PASS** — Gradle emitted a Java native-access warning. |
+| PostgreSQL migration and pgTAP suites | **NOT RUN** — Docker daemon unavailable; forward migration remains unapplied. |
+| Laravel tests and Pint | **NOT RERUN** — no Laravel application code changed in the integration merge. |
+
+The current fix branch already enforced privileged MFA enrollment and AAL2.
+The integration retains that implementation and adds regression tests. The
+notification reservation correction is a forward migration; no database
+application is claimed. The incoming security branch's historical test
+reports for PostgreSQL, separate-session concurrency, and catalog checks were
+not reproduced in this pass.
 
 ## Interpretation
 
