@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dashboard/dashboard_repository.dart';
 
-typedef PhoneMfaFactorOption = ({String id, String label});
+typedef MfaFactorOption = ({String id, String label, bool isPhone});
 
 class MfaChallengeScreen extends StatefulWidget {
   const MfaChallengeScreen({
@@ -16,7 +16,7 @@ class MfaChallengeScreen extends StatefulWidget {
     super.key,
   });
 
-  final List<PhoneMfaFactorOption> factors;
+  final List<MfaFactorOption> factors;
   final Future<String> Function(String factorId) onRequestCode;
   final Future<void> Function(String factorId, String challengeId, String code)
   onVerifyCode;
@@ -148,6 +148,14 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
   @override
   Widget build(BuildContext context) {
     final hasFactors = widget.factors.isNotEmpty;
+    MfaFactorOption? selectedFactor;
+    for (final factor in widget.factors) {
+      if (factor.id == _selectedFactorId) {
+        selectedFactor = factor;
+        break;
+      }
+    }
+    final isPhoneFactor = selectedFactor?.isPhone ?? false;
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -161,8 +169,10 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.sms_outlined,
+                    Icon(
+                      isPhoneFactor
+                          ? Icons.sms_outlined
+                          : Icons.security_outlined,
                       size: 52,
                       color: Color(0xFF34E89B),
                     ),
@@ -177,10 +187,13 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                     const SizedBox(height: 10),
                     Text(
                       hasFactors
-                          ? 'Enter the SMS code to finish signing in.'
+                          ? isPhoneFactor
+                                ? 'Enter the SMS code to finish signing in.'
+                                : 'Enter the code from your authenticator app to finish signing in.'
                           : 'This account requires a second factor, but no '
-                                'supported phone factor is available. Sign out '
-                                'and contact support for help restoring access.',
+                                'verified factor is available. Sign out and '
+                                'complete setup through the secure admin panel '
+                                'or contact a Super Admin for help.',
                       textAlign: TextAlign.center,
                     ),
                     if (hasFactors) ...[
@@ -189,8 +202,8 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                         DropdownButtonFormField<String>(
                           key: const Key('login-mfa-factor'),
                           initialValue: _selectedFactorId,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone factor',
+                          decoration: InputDecoration(
+                            labelText: 'Verification factor',
                           ),
                           items: widget.factors
                               .map(
@@ -210,8 +223,9 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                         )
                       else
                         Text(
-                          'A code will be sent to '
-                          '${widget.factors.first.label}.',
+                          isPhoneFactor
+                              ? 'A code will be sent to ${widget.factors.first.label}.'
+                              : 'Open ${widget.factors.first.label} to get a code.',
                           textAlign: TextAlign.center,
                         ),
                       const SizedBox(height: 12),
@@ -223,21 +237,27 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                           keyboardType: TextInputType.number,
                           maxLength: 6,
                           enabled: !_isSending && !_isVerifying,
-                          decoration: const InputDecoration(
-                            labelText: 'Six-digit SMS code',
+                          decoration: InputDecoration(
+                            labelText: isPhoneFactor
+                                ? 'Six-digit SMS code'
+                                : 'Six-digit authenticator code',
                           ),
                           validator: (value) =>
                               RegExp(r'^\d{6}$').hasMatch(value ?? '')
                               ? null
-                              : 'Enter the six-digit SMS code',
+                              : isPhoneFactor
+                              ? 'Enter the six-digit SMS code'
+                              : 'Enter the six-digit authenticator code',
                         ),
                       ),
                       if (_isSending) ...[
                         const SizedBox(height: 8),
                         const Center(child: CircularProgressIndicator()),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Sending verification code…',
+                        Text(
+                          isPhoneFactor
+                              ? 'Sending verification code…'
+                              : 'Preparing verification…',
                           textAlign: TextAlign.center,
                         ),
                       ],

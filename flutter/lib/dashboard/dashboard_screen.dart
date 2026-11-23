@@ -663,7 +663,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final outcome = await _pendingNotificationQueue.scan(
         selection.notification,
-        (content) => _analyze('message', content, showFailureMessage: false),
+        (content, idempotencyKey) => _analyze(
+          'message',
+          content,
+          notificationIdempotencyKey: idempotencyKey,
+          showFailureMessage: false,
+        ),
       );
       if (!mounted) return;
       switch (outcome) {
@@ -1323,6 +1328,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
     bool showFailureMessage = true,
   }) async {
     var analysisSucceeded = false;
@@ -1332,6 +1338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         input,
         useAi: useAi,
         useUrlReputation: useUrlReputation,
+        notificationIdempotencyKey: notificationIdempotencyKey,
       );
       analysisSucceeded = true;
       if (!mounted) return true;
@@ -1341,6 +1348,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _recordScanAndMaybeAskForFeedback();
       return true;
     } on FunctionException catch (error) {
+      if (notificationIdempotencyKey != null && error.status == 410) {
+        if (mounted) {
+          _showMessage(
+            'This notification result was deleted. No new scan was created.',
+          );
+        }
+        return true;
+      }
       if (mounted && showFailureMessage) {
         _showMessage(_scanFunctionErrorMessage(error));
       }

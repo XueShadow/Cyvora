@@ -2,7 +2,7 @@ import {
   createClient,
   type SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requiresMfaChallenge } from '../_shared/mfa-auth.ts';
+import { mfaBlockReason } from '../_shared/mfa-auth.ts';
 import { readJsonObjectBody } from '../_shared/request-body.ts';
 
 const corsHeaders = {
@@ -68,10 +68,15 @@ async function handleRequest(request: Request) {
   if (authError || !user || !user.email) {
     return jsonResponse(401, { error: 'Your session is invalid or expired.' });
   }
-  if (requiresMfaChallenge(user, accessToken)) {
+  const mfaBlock = mfaBlockReason(user, accessToken);
+  if (mfaBlock) {
     return jsonResponse(
       403,
-      { error: 'Complete two-factor authentication before using this service.' },
+      {
+        error: mfaBlock === 'enrollment_required'
+          ? 'Enroll a verified authenticator before using this service.'
+          : 'Complete two-factor authentication before using this service.',
+      },
     );
   }
 

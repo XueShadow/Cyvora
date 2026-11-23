@@ -1123,6 +1123,23 @@ export type Database = {
         Returns: boolean;
       };
       "prune_analysis_data": { Args: { "max_rows"?: number }; Returns: number };
+      "delete_expired_notification_scan_idempotency": {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      "record_notification_threat_scan": {
+        Args: {
+          "target_analysis_modules": Json;
+          "target_assessment": Json;
+          "target_indicators": string[];
+          "target_lease_token": string;
+          "target_request_id": string;
+          "target_risk_level": string;
+          "target_scan_type": string;
+          "target_user_id": string;
+        };
+        Returns: string;
+      };
       "record_threat_scan": {
         Args: {
           "target_analysis_modules": Json;
@@ -1133,6 +1150,22 @@ export type Database = {
           "target_user_id": string;
         };
         Returns: string;
+      };
+      "release_notification_scan": {
+        Args: {
+          "target_lease_token": string;
+          "target_request_id": string;
+          "target_user_id": string;
+        };
+        Returns: undefined;
+      };
+      "reserve_notification_scan": {
+        Args: {
+          "target_request_fingerprint": string;
+          "target_request_id": string;
+          "target_user_id": string;
+        };
+        Returns: Json;
       };
       "stage_trusted_example": {
         Args: {

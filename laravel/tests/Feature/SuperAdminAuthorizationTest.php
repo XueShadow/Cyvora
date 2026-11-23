@@ -87,10 +87,14 @@ class SuperAdminAuthorizationTest extends TestCase
             'email' => 'admin@example.test',
             'email_confirmed_at' => '2026-01-01T00:00:00Z',
             'app_metadata' => ['role' => 'super_admin'],
-            'factors' => [],
+            'factors' => [[
+                'id' => 'factor-123',
+                'factor_type' => 'totp',
+                'status' => 'verified',
+            ]],
         ];
         $session = [
-            'access_token' => 'header.access-token.signature',
+            'access_token' => $this->tokenWithAal('aal2'),
             'refresh_token' => 'refresh-token',
             'expires_in' => 3600,
             'user' => $user,
@@ -164,6 +168,27 @@ class SuperAdminAuthorizationTest extends TestCase
         );
     }
 
+    public function test_sensitive_user_changes_require_recent_mfa_reauthentication(): void
+    {
+        $this->fakeAuth('admin');
+        $this->signIn(route('admin.dashboard'));
+        $this->travel(6)->minutes();
+
+        $target = '/admin/users/550e8400-e29b-41d4-a716-446655440001/suspend';
+        $this->post($target, [
+            'email_confirmation' => 'user@example.test',
+            'ban_duration' => '24 hours',
+        ])->assertRedirect(route('admin.reauth.show'));
+
+        $this->post('/admin/reauthenticate/challenge', ['factor_id' => 'factor-123'])
+            ->assertRedirect(route('admin.reauth.show'));
+        $this->post('/admin/reauthenticate', ['code' => '123456'])
+            ->assertRedirect($target);
+
+        $this->post($target, [])
+            ->assertSessionHasErrors(['email_confirmation', 'ban_duration']);
+    }
+
     public function test_admin_mutation_routes_remain_in_the_web_middleware_group(): void
     {
         $route = app('router')->getRoutes()->getByName('admin.users.suspend');
@@ -191,10 +216,14 @@ class SuperAdminAuthorizationTest extends TestCase
             'email' => 'admin@example.test',
             'email_confirmed_at' => '2026-01-01T00:00:00Z',
             'app_metadata' => ['role' => $role],
-            'factors' => [],
+            'factors' => [[
+                'id' => 'factor-123',
+                'factor_type' => 'totp',
+                'status' => 'verified',
+            ]],
         ];
         $session = [
-            'access_token' => 'header.access-token.signature',
+            'access_token' => $this->tokenWithAal('aal2'),
             'refresh_token' => 'refresh-token',
             'expires_in' => 3600,
             'user' => $user,
@@ -206,6 +235,12 @@ class SuperAdminAuthorizationTest extends TestCase
             }
             if (str_contains($request->url(), '/auth/v1/user')) {
                 return Http::response($user, 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/factors/factor-123/challenge')) {
+                return Http::response(['id' => 'reauth-challenge'], 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/factors/factor-123/verify')) {
+                return Http::response($session, 200);
             }
             if (str_contains($request->url(), '/rest/v1/admin_user_directory')) {
                 return Http::response([[
@@ -221,5 +256,12 @@ class SuperAdminAuthorizationTest extends TestCase
 
             return Http::response([], 200);
         });
+    }
+
+    private function tokenWithAal(string $aal): string
+    {
+        $payload = rtrim(strtr(base64_encode(json_encode(['aal' => $aal], JSON_THROW_ON_ERROR)), '+/', '-_'), '=');
+
+        return 'header.'.$payload.'.signature';
     }
 }

@@ -431,6 +431,7 @@ abstract interface class DashboardRepository {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
   });
 
   Future<String> chatSafetyAssistant(List<AssistantChatMessage> messages);
@@ -924,6 +925,7 @@ class SupabaseDashboardRepository implements DashboardRepository {
     String input, {
     bool useAi = false,
     bool useUrlReputation = false,
+    String? notificationIdempotencyKey,
   }) async {
     if (type != 'message' && type != 'url' && type != 'screenshot') {
       throw ArgumentError(
@@ -946,6 +948,7 @@ class SupabaseDashboardRepository implements DashboardRepository {
         'input': input,
         'use_ai': useAi,
         'use_url_reputation': useUrlReputation,
+        'notification_idempotency_key': notificationIdempotencyKey,
       },
     );
     final data = response.data;

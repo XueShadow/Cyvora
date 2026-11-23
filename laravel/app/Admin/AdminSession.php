@@ -19,6 +19,10 @@ final class AdminSession
 
     private const PENDING_KEY = 'admin.pending_auth';
 
+    private const PENDING_ENROLLMENT_KEY = 'admin.pending_enrollment';
+
+    private const PENDING_REAUTH_KEY = 'admin.pending_reauth';
+
     public function __construct(
         private SupabaseAdminAuth $auth,
         private SupabaseAdminRepository $repository,
@@ -32,13 +36,18 @@ final class AdminSession
         $session = $this->auth->assertAdminSession($session);
         $user = $session['user'];
 
-        if ($this->auth->requiresMfa($user, $session['access_token'])) {
+        if (! $this->auth->mfaIsSatisfied($user, $session['access_token'])) {
             throw new AdminMfaRequiredException;
         }
 
+        $session['mfa_verified_at'] = now()->timestamp;
         $request->session()->regenerate(true);
         $this->write($request, self::SESSION_KEY, $session);
-        $request->session()->forget(self::PENDING_KEY);
+        $request->session()->forget([
+            self::PENDING_KEY,
+            self::PENDING_ENROLLMENT_KEY,
+            self::PENDING_REAUTH_KEY,
+        ]);
 
         return $this->identity($user);
     }
@@ -68,6 +77,160 @@ final class AdminSession
         $this->write($request, self::PENDING_KEY, $session);
 
         return $factors;
+    }
+
+    /**
+     * @param  array<string, mixed>  $factor
+     * @param  array<string, mixed>  $challenge
+     */
+    public function beginMfaEnrollment(
+        Request $request,
+        array $session,
+        array $factor,
+        array $challenge,
+    ): void {
+        $session = $this->auth->assertAdminSession($session);
+        if (
+            ! $this->auth->requiresMfaEnrollment($session['user'])
+            || ! is_string($factor['id'] ?? null)
+            || ! is_string($challenge['id'] ?? null)
+            || ! is_array($factor['totp'] ?? null)
+            || ! is_string($factor['totp']['secret'] ?? null)
+            || ! is_string($factor['totp']['uri'] ?? null)
+            || ! is_string($factor['totp']['qr_code'] ?? null)
+        ) {
+            throw new AdminAccessDeniedException;
+        }
+
+        $session['mfa_factor_id'] = $factor['id'];
+        $session['mfa_challenge_id'] = $challenge['id'];
+        $session['mfa_enrollment_secret'] = $factor['totp']['secret'];
+        $session['mfa_enrollment_uri'] = $factor['totp']['uri'];
+        $session['mfa_enrollment_qr_code'] = $factor['totp']['qr_code'];
+        $session['mfa_enrollment_expires_at'] = now()->addMinutes(10)->timestamp;
+
+        $request->session()->regenerate(true);
+        $this->write($request, self::PENDING_ENROLLMENT_KEY, $session);
+        $request->session()->forget(self::PENDING_KEY);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function pendingMfaEnrollment(Request $request): ?array
+    {
+        $session = $this->read($request, self::PENDING_ENROLLMENT_KEY);
+        if ($session === null) {
+            return null;
+        }
+
+        $expiresAt = is_numeric($session['mfa_enrollment_expires_at'] ?? null)
+            ? (int) $session['mfa_enrollment_expires_at']
+            : 0;
+        if ($expiresAt < now()->timestamp) {
+            $request->session()->forget(self::PENDING_ENROLLMENT_KEY);
+
+            return null;
+        }
+
+        return $session;
+    }
+
+    /**
+     * @param  array<string, mixed>  $challenge
+     */
+    public function beginReauthentication(
+        Request $request,
+        string $factorId,
+        array $challenge,
+    ): void {
+        $session = $this->read($request, self::SESSION_KEY);
+        $factorIds = is_array($session['user'] ?? null)
+            ? array_column($this->auth->verifiedFactors($session['user']), 'id')
+            : [];
+        if (
+            $session === null
+            || ! in_array($factorId, $factorIds, true)
+            || ! is_string($challenge['id'] ?? null)
+        ) {
+            throw new AdminAccessDeniedException;
+        }
+
+        $session['reauth_factor_id'] = $factorId;
+        $session['reauth_challenge_id'] = $challenge['id'];
+        $session['reauth_expires_at'] = now()->addMinutes(5)->timestamp;
+        $request->session()->regenerate(true);
+        $this->write($request, self::PENDING_REAUTH_KEY, $session);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function pendingReauthentication(Request $request): ?array
+    {
+        $session = $this->read($request, self::PENDING_REAUTH_KEY);
+        if ($session === null) {
+            return null;
+        }
+
+        $expiresAt = is_numeric($session['reauth_expires_at'] ?? null)
+            ? (int) $session['reauth_expires_at']
+            : 0;
+        if ($expiresAt < now()->timestamp) {
+            $request->session()->forget(self::PENDING_REAUTH_KEY);
+
+            return null;
+        }
+
+        return $session;
+    }
+
+    /**
+     * @return array<int, array{id: string, factor_type: string, friendly_name: string|null}>
+     */
+    public function verifiedFactorsForCurrentSession(Request $request): array
+    {
+        $session = $this->read($request, self::SESSION_KEY);
+
+        return is_array($session['user'] ?? null)
+            ? $this->auth->verifiedFactors($session['user'])
+            : [];
+    }
+
+    public function reauthenticationIsRecent(Request $request): bool
+    {
+        $session = $this->read($request, self::SESSION_KEY);
+        $verifiedAt = is_numeric($session['mfa_verified_at'] ?? null)
+            ? (int) $session['mfa_verified_at']
+            : 0;
+
+        return $verifiedAt <= now()->timestamp
+            && $verifiedAt >= now()->subMinutes(5)->timestamp;
+    }
+
+    /**
+     * @param  array<string, mixed>  $session
+     */
+    public function completeReauthentication(Request $request, array $session): AdminIdentity
+    {
+        $pending = $this->pendingReauthentication($request);
+        $active = $this->read($request, self::SESSION_KEY);
+        if (
+            $pending === null
+            || ! is_array($active['user'] ?? null)
+            || ! is_array($session['user'] ?? null)
+            || ($active['user']['id'] ?? null) !== ($pending['user']['id'] ?? null)
+            || ($session['user']['id'] ?? null) !== ($active['user']['id'] ?? null)
+            || ! is_string($session['access_token'] ?? null)
+            || ! $this->auth->mfaIsSatisfied($session['user'], $session['access_token'])
+        ) {
+            throw new AdminAccessDeniedException;
+        }
+
+        $identity = $this->store($request, $session);
+        $request->session()->forget(self::PENDING_REAUTH_KEY);
+
+        return $identity;
     }
 
     /**
@@ -192,7 +355,10 @@ final class AdminSession
             return null;
         }
 
-        if ($this->auth->requiresMfa($user, $session['access_token'])) {
+        if (
+            $this->auth->requiresMfaEnrollment($user)
+            || $this->auth->requiresMfa($user, $session['access_token'])
+        ) {
             $this->forget($request);
 
             throw new AdminMfaRequiredException;
@@ -215,7 +381,12 @@ final class AdminSession
 
     public function forget(Request $request): void
     {
-        $request->session()->forget([self::SESSION_KEY, self::PENDING_KEY]);
+        $request->session()->forget([
+            self::SESSION_KEY,
+            self::PENDING_KEY,
+            self::PENDING_ENROLLMENT_KEY,
+            self::PENDING_REAUTH_KEY,
+        ]);
     }
 
     private function identity(array $user): AdminIdentity

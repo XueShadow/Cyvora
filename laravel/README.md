@@ -8,7 +8,9 @@ Edge Function backend. See the [architecture map](../docs/CYVORA_ARCHITECTURE.md
 ## What is implemented
 
 - Separate `/admin` sign-in, sign-out, Supabase password recovery, and MFA
-  step-up for accounts with a verified factor.
+  enrollment and AAL2 sign-in for every administrator. Accounts without a
+  verified factor are limited to first-time enrollment; existing verified
+  TOTP or phone factors must complete a challenge.
 - Four server-assigned roles: `super_admin`, `admin`, `moderator`, and
   `support_admin`. The panel trusts only Supabase `app_metadata.role`; regular
   user-editable metadata and public registration cannot grant privileges.
@@ -22,6 +24,8 @@ Edge Function backend. See the [architecture map](../docs/CYVORA_ARCHITECTURE.md
 - User suspension/reactivation and a separately reviewed account-deletion
   workflow. Destructive operations require confirmation; deletion execution
   is restricted to an independent Super Admin reviewer.
+- Fresh MFA reauthentication before account, family, moderation, deletion,
+  dataset-release, and administrator-role changes.
 
 The panel intentionally does not display private message content, invitation
 tokens, authentication tokens, AI secrets, per-user usage, or unredacted family
@@ -71,12 +75,14 @@ php artisan migrate
 
 ## Supabase deployment and first administrator
 
-Review the pending SQL against the target environment, apply the migrations in
-order (including `202611230002_super_admin_panel.sql`), and deploy the
-`scam-intelligence` Edge Function revision that recognizes `super_admin`.
-Complete this in a staging project first. Neither a successful Laravel test
-run nor a local route list proves that a Supabase migration or Edge Function
-has been applied to a remote project.
+Review the pending SQL against the target environment, apply every required
+migration in order (including `202611170005_notification_scan_idempotency.sql`,
+`202611230002_super_admin_panel.sql`, and
+`202611230003_require_mfa_for_admins.sql`), and deploy the current
+`scam-intelligence` and `family-invitations` Edge Function revisions. Complete
+this in a staging project first. Neither a successful Laravel test run nor a
+local route list proves that a Supabase migration or Edge Function has been
+applied to a remote project.
 
 Create and verify the first administrator through the trusted provisioning
 path. The account must already exist in Supabase Auth and have a confirmed
@@ -87,9 +93,10 @@ php artisan admin:provision admin@example.com super_admin
 ```
 
 Only a trusted operator with access to the server-side service-role key should
-run this command. Subsequent role assignment is available to Super Admins in
-the panel. Do not assign roles through `user_metadata`, client-side settings,
-or Flutter.
+run this command. On first sign-in, the administrator must enroll and verify a
+TOTP factor before the panel creates an authenticated session. Subsequent role
+assignment is available to Super Admins in the panel. Do not assign roles
+through `user_metadata`, client-side settings, or Flutter.
 
 ## Role boundaries
 
@@ -109,6 +116,13 @@ administrator's user JWT and Supabase RLS rather than the service role.
 
 ## Data and deployment limits
 
+- A password-only session cannot access administrator routes, Edge Function
+  administration, or protected RLS data. Privileged roles require a verified
+  factor and AAL2; sensitive panel mutations require another MFA challenge
+  within five minutes.
+- MFA recovery is a trusted, out-of-band operator process, not a bypass route.
+  A recovered account must be re-provisioned and enroll a new factor before
+  privileged access resumes.
 - Supabase SQL, RLS behavior, Auth administrative calls, and Edge Function
   operations require staging/live integration verification. They have not been
   verified against a deployed project by the repository's Laravel test suite.
@@ -136,7 +150,9 @@ php artisan test --compact
 php artisan route:list --path=admin
 ```
 
-Automated Laravel tests use HTTP fakes. Before production, add/perform staging
-verification for SQL privileges and append-only behavior, RLS with role
-separation, Auth/MFA, Edge Function reviewer gates, failure handling, and
-administrative audit events.
+Automated Laravel tests use HTTP fakes. The current local suite has 28 tests;
+it does not replace staging verification for SQL privileges and append-only
+behavior, RLS role separation, live Auth/MFA, Edge Function reviewer gates,
+failure handling, or administrative audit events. See the [full security
+audit](../docs/CYVORA_FULL_SECURITY_AUDIT.md) and [deployment
+guide](../docs/CYVORA_SUPER_ADMIN_DEPLOYMENT.md).

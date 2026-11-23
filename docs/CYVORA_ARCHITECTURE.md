@@ -5,6 +5,13 @@
 Remote Supabase deployment state, credentials, and live provider connectivity
 have not been verified.
 
+**Current hardening status:** All four privileged roles require a verified MFA
+factor and AAL2 across Laravel, administrator-facing Edge Functions, and the
+existing RLS MFA gate. Laravel performs first-login TOTP enrollment and
+requires a fresh challenge before sensitive mutations. These source changes
+and migrations have not been applied to a Supabase project; see the [full
+security audit](CYVORA_FULL_SECURITY_AUDIT.md).
+
 ## System map
 
 ```text
@@ -30,9 +37,10 @@ Supabase PostgreSQL
   └─ versioned migrations
 
 Laravel 13 Super Admin panel
-  ├─ Supabase Auth sign-in, MFA step-up, and role revalidation
+  ├─ Supabase Auth sign-in, mandatory MFA enrollment/challenge, and role revalidation
+  ├─ Fresh MFA reauthentication for sensitive mutations
   ├─ server-only privileged views and Auth admin operations
-  ├─ user-JWT/RLS dataset reads and trusted Edge Function moderation calls
+  ├─ user-JWT/AAL2 RLS dataset reads and trusted Edge Function moderation calls
   └─ append-only administrative audit and deletion workflows
 
 GitHub Actions
@@ -48,9 +56,10 @@ GitHub Actions
 
 Laravel is a separate, server-rendered administrator client. Its service-role
 credential is used only server-side for narrowly scoped administrative reads,
-Auth management, and audit/workflow storage. Trusted-intelligence reads use an
-administrator user JWT and RLS; review and release operations call the existing
-Edge Function.
+Auth management, and audit/workflow storage. Privileged roles require a
+verified factor and AAL2. Trusted-intelligence reads use an administrator user
+JWT and RLS; review and release operations call the existing Edge Function
+with its reviewer gates intact.
 
 ```mermaid
 flowchart LR
@@ -94,7 +103,7 @@ handles invitation operations using the service-role key only server-side.
 Migrations define schemas, RLS, RPCs, quotas, provider health, and retention.
 The production dashboard ledger was observed at
 `202611150005_mfa_enforcement`; repository migrations
-`202611150006_scan_history_retention.sql` and `202611170001`–`202611170004`
+`202611150006_scan_history_retention.sql` and `202611170001`–`202611170005`
 were not recorded as applied. Edge Function deployment revisions were not
 verified. This makes repository state and production database state different;
 no migration was run during this audit.
@@ -108,6 +117,13 @@ selected item is sent to the server only after the user chooses to scan it.
 This is not automatic background analysis. iOS uses the Flutter app and
 Supabase Auth callback URL scheme; no equivalent notification-listener
 implementation was identified.
+
+Each notification event has a stable scan idempotency key. A server-side
+reservation prevents duplicate scan persistence when the app retries after
+process loss, and replays the prior result; deleting scan history prevents an
+old pending notification from recreating it. Migration
+`202611170005_notification_scan_idempotency.sql` requires `pg_cron` for
+idempotency-record cleanup and has not been applied or database-tested.
 
 Configured identities differ: Android namespace/application ID
 `com.example.cyvora_mobile`; iOS bundle ID `com.example.cyvoraMobile`.
@@ -128,7 +144,10 @@ Setup and role details are in [`laravel/README.md`](../laravel/README.md).
 The repository includes migration
 `202611230002_super_admin_panel.sql` for restricted admin views, append-only
 audit logs, deletion requests, and trusted-intelligence reviewer policy
-updates. The `scam-intelligence` function recognizes `super_admin` without
+updates. Migration `202611230003_require_mfa_for_admins.sql` changes the
+existing MFA gate to require a verified factor and AAL2 for `super_admin`,
+`admin`, `moderator`, and `support_admin`, while preserving opt-in MFA for
+regular users. The `scam-intelligence` function recognizes `super_admin` without
 removing its reviewer separation and dataset release checks. Migration
 application, remote Auth configuration, Edge Function deployment, and
 end-to-end behavior against a Supabase project remain unverified.
@@ -144,6 +163,8 @@ end-to-end behavior against a Supabase project remain unverified.
   are resolved.
 - Laravel is the security-critical Super Admin system; its implementation and
   deployment must be verified independently from the Flutter app.
+- MFA recovery remains an operator-controlled break-glass process; there is no
+  panel endpoint that bypasses the second factor.
 - CI validates local/client code and mocked/static backend behavior. It does
   not run PostgreSQL migrations, RLS integration tests, deployed Edge Function
   tests, live provider calls, iOS builds, or device notification tests.

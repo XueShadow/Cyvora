@@ -16,8 +16,11 @@ class SuperAdminAuthenticationTest extends TestCase
 
     public function test_admin_sign_in_uses_server_assigned_role_and_encrypts_session_tokens(): void
     {
+        $session = $this->authResponse('super_admin');
+
         Http::fake([
-            'https://cyvora.test/auth/v1/token*' => Http::response($this->authResponse('super_admin')),
+            'https://cyvora.test/auth/v1/token*' => Http::response($session),
+            'https://cyvora.test/auth/v1/user*' => Http::response($session['user']),
             'https://cyvora.test/rest/v1/admin_audit_logs*' => Http::response([], 201),
         ]);
 
@@ -29,7 +32,7 @@ class SuperAdminAuthenticationTest extends TestCase
         $response->assertRedirect(route('admin.dashboard'));
         $storedSession = session('admin.auth');
         $this->assertIsString($storedSession);
-        $this->assertStringNotContainsString('secret-access-token', $storedSession);
+        $this->assertStringNotContainsString($session['access_token'], $storedSession);
         $this->assertStringNotContainsString('secret-refresh-token', $storedSession);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), '/auth/v1/token')
             && $request->hasHeader('apikey', 'anon-test-key'));
@@ -47,7 +50,7 @@ class SuperAdminAuthenticationTest extends TestCase
         $this->assertNull(session('admin.auth'));
         Http::assertSent(fn (ClientRequest $request): bool => str_contains($request->url(), '/auth/v1/logout')
             && str_contains($request->url(), 'scope=local')
-            && $request->hasHeader('Authorization', 'Bearer header.secret-access-token.signature'));
+            && $request->hasHeader('Authorization', 'Bearer '.$this->tokenWithAal('aal2')));
     }
 
     public function test_local_logout_completes_when_supabase_cannot_confirm_revocation(): void
@@ -86,6 +89,9 @@ class SuperAdminAuthenticationTest extends TestCase
         Http::fake(function (ClientRequest $request) use ($pendingSession, $verifiedSession) {
             if (str_contains($request->url(), '/auth/v1/token')) {
                 return Http::response($pendingSession, 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/user')) {
+                return Http::response($pendingSession['user'], 200);
             }
             if (str_contains($request->url(), '/auth/v1/factors/factor-123/challenge')) {
                 return Http::response(['id' => 'challenge-123'], 200);
@@ -134,6 +140,9 @@ class SuperAdminAuthenticationTest extends TestCase
             if (str_contains($request->url(), '/auth/v1/token')) {
                 return Http::response($pendingSession, 200);
             }
+            if (str_contains($request->url(), '/auth/v1/user')) {
+                return Http::response($pendingSession['user'], 200);
+            }
             if (str_contains($request->url(), '/auth/v1/factors/factor-123/challenge')) {
                 return Http::response(['id' => 'challenge-123'], 200);
             }
@@ -166,6 +175,7 @@ class SuperAdminAuthenticationTest extends TestCase
 
         Http::fake([
             'https://cyvora.test/auth/v1/token*' => Http::response($response),
+            'https://cyvora.test/auth/v1/user*' => Http::response($response['user']),
             'https://cyvora.test/rest/v1/admin_audit_logs*' => Http::response([], 201),
         ]);
 
@@ -217,13 +227,94 @@ class SuperAdminAuthenticationTest extends TestCase
             ->assertSessionHas('status', 'If an authorized account exists, password recovery instructions have been sent.');
     }
 
+    public function test_privileged_account_without_a_verified_factor_must_enroll_before_access(): void
+    {
+        $pending = $this->authResponse('super_admin');
+        $pending['access_token'] = $this->tokenWithAal('aal1');
+        $pending['user']['factors'] = [];
+        $verified = $pending;
+        $verified['access_token'] = $this->tokenWithAal('aal2');
+        $verified['refresh_token'] = 'enrolled-refresh-token';
+        $verified['user']['factors'] = [[
+            'id' => 'enrolled-factor',
+            'factor_type' => 'totp',
+            'status' => 'verified',
+        ]];
+
+        Http::fake(function (ClientRequest $request) use ($pending, $verified) {
+            if (str_contains($request->url(), '/auth/v1/token')) {
+                return Http::response($pending, 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/user')) {
+                $authorization = $request->header('Authorization')[0] ?? '';
+
+                return Http::response(
+                    $authorization === 'Bearer '.$verified['access_token']
+                        ? $verified['user']
+                        : $pending['user'],
+                    200,
+                );
+            }
+            if (
+                str_contains($request->url(), '/auth/v1/factors')
+                && $request->method() === 'POST'
+                && parse_url($request->url(), PHP_URL_PATH) === '/auth/v1/factors'
+                && ! str_contains($request->url(), '/challenge')
+            ) {
+                return Http::response([
+                    'id' => 'enrolled-factor',
+                    'factor_type' => 'totp',
+                    'totp' => [
+                        'secret' => 'one-time-enrollment-secret',
+                        'uri' => 'otpauth://totp/Cyvora:admin?secret=one-time-enrollment-secret',
+                        'qr_code' => 'data:image/svg+xml,setup',
+                    ],
+                ], 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/factors/enrolled-factor/challenge')) {
+                return Http::response(['id' => 'enrollment-challenge'], 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/factors/enrolled-factor/verify')) {
+                return Http::response($verified, 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/admin_audit_logs')) {
+                return Http::response([], 201);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->post('/admin/login', [
+            'email' => 'admin@example.test',
+            'password' => 'correct horse battery staple',
+        ])->assertRedirect(route('admin.mfa.enroll.show'));
+
+        $this->assertNull(session('admin.auth'));
+        $this->get('/admin')->assertRedirect(route('admin.login'));
+        $this->get('/admin/mfa/enroll')
+            ->assertOk()
+            ->assertSee('one-time-enrollment-secret')
+            ->assertHeader('Cache-Control', 'no-store, private');
+
+        $this->post('/admin/mfa/enroll', ['code' => '123456'])
+            ->assertRedirect(route('admin.dashboard'));
+
+        $this->assertIsString(session('admin.auth'));
+        Http::assertSent(fn (ClientRequest $request): bool => str_contains($request->url(), '/auth/v1/factors/enrolled-factor/verify')
+            && ($request->data()['code'] ?? null) === '123456');
+        Http::assertNotSent(fn (ClientRequest $request): bool => str_contains($request->url(), '/rest/v1/admin_audit_logs')
+            && str_contains(json_encode($request->data(), JSON_THROW_ON_ERROR), 'one-time-enrollment-secret'));
+    }
+
     /**
      * @return array<string, mixed>
      */
     private function authResponse(?string $role): array
     {
         return [
-            'access_token' => 'header.secret-access-token.signature',
+            'access_token' => $role === null
+                ? 'header.secret-access-token.signature'
+                : $this->tokenWithAal('aal2'),
             'refresh_token' => 'secret-refresh-token',
             'expires_in' => 3600,
             'user' => [
@@ -231,7 +322,11 @@ class SuperAdminAuthenticationTest extends TestCase
                 'email' => $role === null ? 'user@example.test' : 'admin@example.test',
                 'email_confirmed_at' => '2026-01-01T00:00:00Z',
                 'app_metadata' => $role === null ? [] : ['role' => $role],
-                'factors' => [],
+                'factors' => $role === null ? [] : [[
+                    'id' => 'factor-123',
+                    'factor_type' => 'totp',
+                    'status' => 'verified',
+                ]],
             ],
         ];
     }

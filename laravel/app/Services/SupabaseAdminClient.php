@@ -83,6 +83,35 @@ final class SupabaseAdminClient
     /**
      * @return array<string, mixed>
      */
+    public function enrollTotpFactor(string $accessToken): array
+    {
+        return $this->json(
+            $this->send(
+                'POST',
+                'auth/v1/factors',
+                false,
+                ['factor_type' => 'totp', 'friendly_name' => 'Cyvora Super Admin'],
+                [],
+                $accessToken,
+            ),
+        );
+    }
+
+    public function removeMfaFactor(string $accessToken, string $factorId): void
+    {
+        $this->send(
+            'DELETE',
+            'auth/v1/factors/'.rawurlencode($factorId),
+            false,
+            [],
+            [],
+            $accessToken,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function verifyMfaChallenge(
         string $accessToken,
         string $factorId,

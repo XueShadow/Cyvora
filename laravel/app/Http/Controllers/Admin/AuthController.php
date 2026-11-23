@@ -65,6 +65,49 @@ class AuthController extends Controller
 
         $user = $session['user'];
 
+        if ($auth->requiresMfaEnrollment($user)) {
+            try {
+                $auth->discardUnverifiedFactors($user, $session['access_token']);
+                $factor = $auth->enrollTotpFactor($session['access_token']);
+                $challenge = is_string($factor['id'] ?? null)
+                    ? $auth->challenge($session['access_token'], $factor['id'])
+                    : [];
+                $adminSession->beginMfaEnrollment($request, $session, $factor, $challenge);
+            } catch (AdminAccessDeniedException|SupabaseRequestException $exception) {
+                if (
+                    $exception instanceof SupabaseRequestException
+                    && ! in_array($exception->status, [400, 401, 403, 404, 429], true)
+                ) {
+                    throw $exception;
+                }
+
+                $audit->record($request, null, 'admin.mfa.enrollment', 'admin_account', null, 'denied');
+
+                return back()->withErrors([
+                    'email' => 'Multi-factor enrollment could not be started. Contact an administrator for assistance.',
+                ]);
+            } catch (SupabaseConfigurationException|SupabaseUnavailableException) {
+                return response()->view('admin.errors.unavailable', [
+                    'message' => 'Multi-factor enrollment is temporarily unavailable.',
+                ], 503);
+            }
+
+            $role = $auth->role($user);
+            if ($role === null) {
+                throw new AdminAccessDeniedException;
+            }
+            $audit->record(
+                $request,
+                new AdminIdentity($user['id'], $user['email'], $role),
+                'admin.mfa.enrollment',
+                'admin_account',
+                $user['id'],
+                'started',
+            );
+
+            return redirect()->route('admin.mfa.enroll.show');
+        }
+
         if ($auth->requiresMfa($user, $session['access_token'])) {
             try {
                 $factors = $adminSession->beginMfa($request, $session);
@@ -103,6 +146,146 @@ class AuthController extends Controller
         );
 
         return redirect()->intended($this->landingRoute($identity));
+    }
+
+    public function showMfaEnrollment(Request $request, AdminSession $adminSession): View|RedirectResponse
+    {
+        $pending = $adminSession->pendingMfaEnrollment($request);
+        if (
+            $pending === null
+            || ! is_string($pending['mfa_enrollment_secret'] ?? null)
+            || ! is_string($pending['mfa_enrollment_uri'] ?? null)
+            || ! is_string($pending['mfa_enrollment_qr_code'] ?? null)
+            || ! is_string($pending['mfa_challenge_id'] ?? null)
+        ) {
+            return redirect()->route('admin.login');
+        }
+
+        return view('admin.auth.mfa-enroll', [
+            'secret' => $pending['mfa_enrollment_secret'],
+            'uri' => $pending['mfa_enrollment_uri'],
+            'qrCode' => $pending['mfa_enrollment_qr_code'],
+        ]);
+    }
+
+    public function verifyMfaEnrollment(
+        Request $request,
+        SupabaseAdminAuth $auth,
+        AdminSession $adminSession,
+        AdminAuditLogger $audit,
+    ): RedirectResponse|View {
+        $request->validate(['code' => ['required', 'digits:6']]);
+        $pending = $adminSession->pendingMfaEnrollment($request);
+        if (
+            $pending === null
+            || ! is_string($pending['access_token'] ?? null)
+            || ! is_string($pending['mfa_factor_id'] ?? null)
+            || ! is_string($pending['mfa_challenge_id'] ?? null)
+        ) {
+            return redirect()->route('admin.login');
+        }
+
+        try {
+            $session = $auth->verifyChallenge(
+                $pending['access_token'],
+                $pending['mfa_factor_id'],
+                $pending['mfa_challenge_id'],
+                $request->string('code')->toString(),
+            );
+        } catch (AdminAccessDeniedException|SupabaseRequestException $exception) {
+            if (
+                $exception instanceof SupabaseRequestException
+                && ! in_array($exception->status, [400, 401, 403, 404, 429], true)
+            ) {
+                throw $exception;
+            }
+
+            $audit->record(
+                $request,
+                null,
+                'admin.mfa.enrollment',
+                'admin_account',
+                null,
+                'denied',
+            );
+
+            return back()->withErrors(['code' => 'The authenticator code was rejected. Try again.']);
+        } catch (SupabaseConfigurationException|SupabaseUnavailableException) {
+            return response()->view('admin.errors.unavailable', [
+                'message' => 'Multi-factor verification is temporarily unavailable.',
+            ], 503);
+        }
+
+        if (($session['user']['id'] ?? null) !== ($pending['user']['id'] ?? null)) {
+            throw new AdminAccessDeniedException;
+        }
+
+        $user = $session['user'];
+        $role = $auth->role($user);
+        if ($role === null) {
+            throw new AdminAccessDeniedException;
+        }
+
+        $identity = new AdminIdentity($user['id'], $user['email'], $role);
+        $adminSession->completeMfa($request, $session);
+        $audit->record(
+            $request,
+            $identity,
+            'admin.mfa.enrollment',
+            'admin_account',
+            $identity->id,
+            'succeeded',
+        );
+
+        return redirect()->intended($this->landingRoute($identity));
+    }
+
+    public function cancelMfaEnrollment(
+        Request $request,
+        SupabaseAdminAuth $auth,
+        AdminSession $adminSession,
+        AdminAuditLogger $audit,
+    ): RedirectResponse|View {
+        $pending = $adminSession->pendingMfaEnrollment($request);
+        if (
+            $pending !== null
+            && is_string($pending['access_token'] ?? null)
+            && is_string($pending['mfa_factor_id'] ?? null)
+        ) {
+            try {
+                $auth->removeFactor($pending['access_token'], $pending['mfa_factor_id']);
+            } catch (SupabaseRequestException $exception) {
+                if (! in_array($exception->status, [400, 401, 404], true)) {
+                    throw $exception;
+                }
+            } catch (SupabaseConfigurationException|SupabaseUnavailableException) {
+                return response()->view('admin.errors.unavailable', [
+                    'message' => 'The incomplete factor could not be removed. Try again later.',
+                ], 503);
+            }
+
+            $user = $pending['user'] ?? null;
+            $role = is_array($user) ? $auth->role($user) : null;
+            $identity = $role !== null && is_array($user)
+                && is_string($user['id'] ?? null)
+                && is_string($user['email'] ?? null)
+                ? new AdminIdentity($user['id'], $user['email'], $role)
+                : null;
+            $audit->record(
+                $request,
+                $identity,
+                'admin.mfa.enrollment.cancelled',
+                'admin_account',
+                $identity?->id,
+                'succeeded',
+            );
+        }
+
+        $adminSession->forget($request);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('admin.login')->with('status', 'Multi-factor setup was cancelled.');
     }
 
     public function showMfa(Request $request, AdminSession $adminSession): View|RedirectResponse
@@ -188,6 +371,109 @@ class AuthController extends Controller
         ]);
 
         return redirect()->intended($this->landingRoute($identity));
+    }
+
+    public function showReauthentication(
+        Request $request,
+        AdminSession $adminSession,
+    ): View {
+        return view('admin.auth.reauthenticate', [
+            'factors' => $adminSession->verifiedFactorsForCurrentSession($request),
+            'pending' => $adminSession->pendingReauthentication($request),
+        ]);
+    }
+
+    public function startReauthentication(
+        Request $request,
+        SupabaseAdminAuth $auth,
+        AdminSession $adminSession,
+    ): RedirectResponse|View {
+        $data = $request->validate(['factor_id' => ['required', 'string', 'max:255']]);
+        $accessToken = $adminSession->accessToken($request);
+        if ($accessToken === null) {
+            return redirect()->route('admin.login');
+        }
+
+        try {
+            $challenge = $auth->challenge($accessToken, $data['factor_id']);
+            $adminSession->beginReauthentication($request, $data['factor_id'], $challenge);
+        } catch (AdminAccessDeniedException|SupabaseRequestException $exception) {
+            if (
+                $exception instanceof SupabaseRequestException
+                && ! in_array($exception->status, [400, 401, 403, 404, 429], true)
+            ) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['factor_id' => 'A verification challenge could not be started.']);
+        } catch (SupabaseConfigurationException|SupabaseUnavailableException) {
+            return response()->view('admin.errors.unavailable', [
+                'message' => 'Reauthentication is temporarily unavailable.',
+            ], 503);
+        }
+
+        return redirect()->route('admin.reauth.show');
+    }
+
+    public function verifyReauthentication(
+        Request $request,
+        SupabaseAdminAuth $auth,
+        AdminSession $adminSession,
+        AdminAuditLogger $audit,
+    ): RedirectResponse|View {
+        $request->validate(['code' => ['required', 'digits:6']]);
+        $pending = $adminSession->pendingReauthentication($request);
+        if (
+            $pending === null
+            || ! is_string($pending['access_token'] ?? null)
+            || ! is_string($pending['reauth_factor_id'] ?? null)
+            || ! is_string($pending['reauth_challenge_id'] ?? null)
+        ) {
+            return redirect()->route('admin.reauth.show');
+        }
+
+        try {
+            $session = $auth->verifyChallenge(
+                $pending['access_token'],
+                $pending['reauth_factor_id'],
+                $pending['reauth_challenge_id'],
+                $request->string('code')->toString(),
+            );
+            $identity = $adminSession->completeReauthentication($request, $session);
+        } catch (AdminAccessDeniedException|SupabaseRequestException $exception) {
+            if (
+                $exception instanceof SupabaseRequestException
+                && ! in_array($exception->status, [400, 401, 403, 404, 429], true)
+            ) {
+                throw $exception;
+            }
+
+            $audit->record(
+                $request,
+                $request->attributes->get('admin'),
+                'admin.reauthentication',
+                'admin_account',
+                null,
+                'denied',
+            );
+
+            return back()->withErrors(['code' => 'The authenticator code was rejected. Try again.']);
+        } catch (SupabaseConfigurationException|SupabaseUnavailableException) {
+            return response()->view('admin.errors.unavailable', [
+                'message' => 'Reauthentication is temporarily unavailable.',
+            ], 503);
+        }
+
+        $audit->record(
+            $request,
+            $identity,
+            'admin.reauthentication',
+            'admin_account',
+            $identity->id,
+            'succeeded',
+        );
+
+        return redirect()->intended(route('admin.dashboard'));
     }
 
     public function logout(

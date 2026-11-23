@@ -14,7 +14,13 @@ final class SupabaseAdminAuth
      */
     public function signIn(string $email, string $password): array
     {
-        return $this->assertAdminSession($this->client->signIn($email, $password));
+        $session = $this->client->signIn($email, $password);
+
+        if (is_string($session['access_token'] ?? null)) {
+            $session['user'] = $this->client->currentUser($session['access_token']);
+        }
+
+        return $this->assertAdminSession($session);
     }
 
     /**
@@ -30,7 +36,13 @@ final class SupabaseAdminAuth
      */
     public function refresh(string $refreshToken): array
     {
-        return $this->assertAdminSession($this->client->refreshSession($refreshToken));
+        $session = $this->client->refreshSession($refreshToken);
+
+        if (is_string($session['access_token'] ?? null)) {
+            $session['user'] = $this->client->currentUser($session['access_token']);
+        }
+
+        return $this->assertAdminSession($session);
     }
 
     /**
@@ -39,6 +51,40 @@ final class SupabaseAdminAuth
     public function challenge(string $accessToken, string $factorId): array
     {
         return $this->client->createMfaChallenge($accessToken, $factorId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function enrollTotpFactor(string $accessToken): array
+    {
+        return $this->client->enrollTotpFactor($accessToken);
+    }
+
+    public function removeFactor(string $accessToken, string $factorId): void
+    {
+        $this->client->removeMfaFactor($accessToken, $factorId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $user
+     */
+    public function discardUnverifiedFactors(array $user, string $accessToken): void
+    {
+        $factors = $user['factors'] ?? [];
+        if (! is_array($factors)) {
+            return;
+        }
+
+        foreach ($factors as $factor) {
+            if (
+                is_array($factor)
+                && ($factor['status'] ?? null) !== 'verified'
+                && is_string($factor['id'] ?? null)
+            ) {
+                $this->removeFactor($accessToken, $factor['id']);
+            }
+        }
     }
 
     /**
@@ -57,13 +103,12 @@ final class SupabaseAdminAuth
             $code,
         );
 
-        if (! isset($session['user']) && is_string($session['access_token'] ?? null)) {
+        if (is_string($session['access_token'] ?? null)) {
             $session['user'] = $this->client->currentUser($session['access_token']);
         }
 
         $session = $this->assertAdminSession($session);
-
-        if ($this->requiresMfa($session['user'], $session['access_token'])) {
+        if (! $this->mfaIsSatisfied($session['user'], $session['access_token'])) {
             throw new AdminAccessDeniedException;
         }
 
@@ -87,13 +132,40 @@ final class SupabaseAdminAuth
      */
     public function requiresMfa(array $user, string $accessToken): bool
     {
+        return $this->role($user) !== null
+            && $this->hasVerifiedFactor($user)
+            && $this->tokenAal($accessToken) !== 'aal2';
+    }
+
+    /**
+     * @param  array<string, mixed>  $user
+     */
+    public function requiresMfaEnrollment(array $user): bool
+    {
+        return $this->role($user) !== null && ! $this->hasVerifiedFactor($user);
+    }
+
+    /**
+     * @param  array<string, mixed>  $user
+     */
+    public function mfaIsSatisfied(array $user, string $accessToken): bool
+    {
+        return $this->role($user) !== null
+            && $this->hasVerifiedFactor($user)
+            && $this->tokenAal($accessToken) === 'aal2';
+    }
+
+    /**
+     * @param  array<string, mixed>  $user
+     */
+    public function hasVerifiedFactor(array $user): bool
+    {
         $factors = $user['factors'] ?? [];
-        $hasVerifiedFactor = is_array($factors) && collect($factors)->contains(
+
+        return is_array($factors) && collect($factors)->contains(
             fn (mixed $factor): bool => is_array($factor)
                 && ($factor['status'] ?? null) === 'verified',
         );
-
-        return $hasVerifiedFactor && $this->tokenAal($accessToken) !== 'aal2';
     }
 
     /**
@@ -153,12 +225,6 @@ final class SupabaseAdminAuth
 
         if ($this->role($user) === null) {
             throw new AdminAccessDeniedException;
-        }
-
-        if ($this->requiresMfa($user, $session['access_token'])) {
-            if ($this->verifiedFactors($user) === []) {
-                throw new AdminAccessDeniedException;
-            }
         }
 
         $session['expires_at'] = now()->timestamp + max(0, (int) ($session['expires_in'] ?? 0));

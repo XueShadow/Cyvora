@@ -31,7 +31,7 @@ import {
   hasVerifiedThreatEvidence,
   validateUnifiedAssessment,
 } from "../_shared/risk-assessment.ts";
-import { requiresMfaChallenge } from "../_shared/mfa-auth.ts";
+import { mfaBlockReason } from "../_shared/mfa-auth.ts";
 import { readLimitedBody } from "../_shared/request-body.ts";
 import { createRequestFingerprint } from "../_shared/request-fingerprint.ts";
 import {
@@ -51,6 +51,13 @@ import type { Database, Json } from "../_shared/database.types.ts";
 import { classifyScamContent } from "./scam-patterns.ts";
 
 type AdminClient = SupabaseClient<Database>;
+
+type NotificationScanReservation = {
+  admin: AdminClient;
+  userId: string;
+  requestId: string;
+  leaseToken: string;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -382,6 +389,7 @@ async function recordThreatScan(
   type: "message" | "url" | "screenshot",
   result: ReturnType<typeof classifyScamContent>,
   unified: ReturnType<typeof assessUnifiedRisk>,
+  notificationReservation?: NotificationScanReservation,
 ): Promise<string> {
   const targetRiskLevel = unified.risk_level === "HIGH" ||
       unified.risk_level === "CRITICAL"
@@ -389,7 +397,7 @@ async function recordThreatScan(
     : unified.risk_level === "MEDIUM" || unified.risk_level === "UNDETERMINED"
     ? "review"
     : "low";
-  const { data, error } = await admin.rpc("record_threat_scan", {
+  const args = {
     target_user_id: userId,
     target_scan_type: type,
     target_risk_level: targetRiskLevel,
@@ -399,12 +407,41 @@ async function recordThreatScan(
       legacy_explanation: result.summary,
     }),
     target_analysis_modules: toJson(unified.analysis_modules),
-  });
+  };
+  const { data, error } = notificationReservation
+    ? await admin.rpc("record_notification_threat_scan", {
+      ...args,
+      target_request_id: notificationReservation.requestId,
+      target_lease_token: notificationReservation.leaseToken,
+    })
+    : await admin.rpc("record_threat_scan", args);
   if (error || typeof data !== "string") {
     console.error("Scam intelligence: analysis metadata could not be saved.", error);
     throw new Error("Analysis results could not be saved.");
   }
   return data;
+}
+
+async function releaseNotificationScan(
+  reservation: NotificationScanReservation,
+): Promise<void> {
+  try {
+    const { error } = await reservation.admin.rpc("release_notification_scan", {
+      target_user_id: reservation.userId,
+      target_request_id: reservation.requestId,
+      target_lease_token: reservation.leaseToken,
+    });
+    if (!error) return;
+    console.error(
+      "Scam intelligence: notification scan lease could not be released.",
+      error.code,
+    );
+  } catch (error) {
+    console.error(
+      "Scam intelligence: notification scan lease release failed.",
+      error instanceof Error ? error.name : "unknown error",
+    );
+  }
 }
 
 function hasTrustedReviewRole(user: {
@@ -1303,7 +1340,12 @@ async function buildUrlReputationModuleResult(
   };
 }
 
-async function handleRequest(request: Request) {
+async function handleRequest(
+  request: Request,
+  onNotificationReservation: (
+    reservation: NotificationScanReservation,
+  ) => void = () => {},
+) {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -1333,9 +1375,12 @@ async function handleRequest(request: Request) {
   if (authError || !user) {
     return jsonResponse(401, { error: "Your session is invalid or expired." });
   }
-  if (requiresMfaChallenge(user, accessToken)) {
+  const mfaBlock = mfaBlockReason(user, accessToken);
+  if (mfaBlock) {
     return jsonResponse(403, {
-      error: "Complete two-factor authentication before using this service.",
+      error: mfaBlock === "enrollment_required"
+        ? "Enroll a verified authenticator before using this service."
+        : "Complete two-factor authentication before using this service.",
     });
   }
 
@@ -1527,6 +1572,83 @@ async function handleRequest(request: Request) {
     });
   }
 
+  const notificationRequestId = body.notification_idempotency_key;
+  if (
+    notificationRequestId !== undefined &&
+    notificationRequestId !== null &&
+    (type !== "message" || !isUuid(notificationRequestId))
+  ) {
+    return jsonResponse(400, {
+      error: "Notification idempotency keys are valid only for message scans.",
+    });
+  }
+
+  let notificationReservation: NotificationScanReservation | undefined;
+  if (typeof notificationRequestId === "string") {
+    const requestFingerprint = await createRequestFingerprint(
+      serviceRoleKey,
+      user.id,
+      "notification_scan",
+      {
+        type,
+        input,
+        use_ai: useAi,
+        use_url_reputation: useUrlReputation,
+      },
+    );
+    const { data, error } = await admin.rpc("reserve_notification_scan", {
+      target_user_id: user.id,
+      target_request_id: notificationRequestId,
+      target_request_fingerprint: requestFingerprint,
+    });
+    if (error || !isRecord(data) || typeof data.status !== "string") {
+      console.error(
+        "Scam intelligence: notification scan reservation failed.",
+        error?.code,
+      );
+      return jsonResponse(503, {
+        error: "Notification analysis is temporarily unavailable.",
+      });
+    }
+    if (data.status === "completed") {
+      if (!isRecord(data.response)) {
+        console.error("Scam intelligence: saved notification result is invalid.");
+        return jsonResponse(503, {
+          error: "Notification analysis is temporarily unavailable.",
+        });
+      }
+      return jsonResponse(200, data.response);
+    }
+    if (data.status === "deleted") {
+      return jsonResponse(410, {
+        error: "This notification result was deleted; no new scan was created.",
+      });
+    }
+    if (data.status === "processing") {
+      return jsonResponse(409, {
+        error: "This notification is already being analyzed. Retry shortly.",
+      });
+    }
+    if (data.status === "conflict") {
+      return jsonResponse(409, {
+        error: "This notification key was already used for different content.",
+      });
+    }
+    if (data.status !== "reserved" || !isUuid(data.lease_token)) {
+      console.error("Scam intelligence: notification reservation was invalid.");
+      return jsonResponse(503, {
+        error: "Notification analysis is temporarily unavailable.",
+      });
+    }
+    notificationReservation = {
+      admin,
+      userId: user.id,
+      requestId: notificationRequestId,
+      leaseToken: data.lease_token,
+    };
+    onNotificationReservation(notificationReservation);
+  }
+
   const { data: allowed, error: quotaError } = await admin.rpc(
     "consume_scam_intelligence_quota",
     { target_user_id: user.id },
@@ -1699,6 +1821,7 @@ async function handleRequest(request: Request) {
     type,
     localResult,
     unified,
+    notificationReservation,
   );
   return jsonResponse(200, {
     ...unified,
@@ -1708,8 +1831,12 @@ async function handleRequest(request: Request) {
 }
 
 Deno.serve(async (request) => {
+  let notificationReservation: NotificationScanReservation | undefined;
   try {
-    return await handleRequest(request);
+    return await handleRequest(
+      request,
+      (reservation) => notificationReservation = reservation,
+    );
   } catch (error) {
     console.error(
       "Scam intelligence: unexpected request failure.",
@@ -1718,5 +1845,9 @@ Deno.serve(async (request) => {
     return jsonResponse(500, {
       error: "The scam intelligence service could not complete this request.",
     });
+  } finally {
+    if (notificationReservation) {
+      await releaseNotificationScan(notificationReservation);
+    }
   }
 });

@@ -6,6 +6,7 @@ use App\Exceptions\SupabaseUnavailableException;
 use App\Http\Middleware\AdminSecurityHeaders;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureAdminPermission;
+use App\Http\Middleware\EnsureAdminReauthentication;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin.auth' => EnsureAdmin::class,
             'admin.permission' => EnsureAdminPermission::class,
+            'admin.reauth' => EnsureAdminReauthentication::class,
             'admin.headers' => AdminSecurityHeaders::class,
         ]);
     })

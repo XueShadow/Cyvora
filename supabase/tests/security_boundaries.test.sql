@@ -2,7 +2,7 @@
 -- All fixture data is rolled back at the end of this file.
 begin;
 
-select plan(14);
+select plan(17);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at
@@ -121,6 +121,36 @@ select is(
   (select count(*) from public.families),
   1::bigint,
   'a family member cannot read an unrelated family'
+);
+select is(
+  public.mfa_access_allowed(),
+  true,
+  'regular accounts without MFA retain their existing access behavior'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1","app_metadata":{"role":"super_admin"}}',
+  true
+);
+select is(
+  public.mfa_access_allowed(),
+  false,
+  'a privileged administrator without a verified factor is denied at AAL1'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2","app_metadata":{"role":"super_admin"}}',
+  true
+);
+select is(
+  public.mfa_access_allowed(),
+  false,
+  'AAL2 without a verified factor is not sufficient for privileged access'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1"}',
+  true
 );
 select throws_ok(
   $$

@@ -38,12 +38,18 @@ class MessageNotificationListenerService : NotificationListenerService() {
             )?.toString()?.trim().orEmpty()
         if (title.isEmpty() && text.isEmpty() || looksPromotional(title, text)) return
 
+        val notificationKey = statusBarNotification.key
+        val notificationGroupId = UUID.nameUUIDFromBytes(
+            notificationKey.toByteArray(StandardCharsets.UTF_8),
+        ).toString()
         val id = UUID.nameUUIDFromBytes(
-            statusBarNotification.key.toByteArray(StandardCharsets.UTF_8),
+            "$notificationKey:${statusBarNotification.postTime}"
+                .toByteArray(StandardCharsets.UTF_8),
         ).toString()
         try {
             queueStorage.enqueue(
                 id = id,
+                notificationGroupId = notificationGroupId,
                 title = title,
                 text = text,
                 packageName = statusBarNotification.packageName,

@@ -49,8 +49,14 @@ class AuthGate extends StatelessWidget {
         final lastName = metadata['last_name'];
         final avatarPath = metadata['avatar_path'];
         final trustedRole = appMetadata['role'];
+        final isTrustedAdmin =
+            trustedRole == 'super_admin' ||
+            trustedRole == 'admin' ||
+            trustedRole == 'moderator' ||
+            trustedRole == 'support_admin';
         return _MfaSessionGate(
           key: ValueKey(session.user.id),
+          isPrivilegedAdmin: isTrustedAdmin,
           child: dashboard.DashboardScreen(
             email: session.user.email ?? 'Cyvora member',
             firstName: firstName is String ? firstName : '',
@@ -58,8 +64,11 @@ class AuthGate extends StatelessWidget {
             avatarPath: avatarPath is String ? avatarPath : null,
             userId: session.user.id,
             isTrustedModerator:
-                trustedRole == 'moderator' || trustedRole == 'admin',
-            isTrustedAdmin: trustedRole == 'admin',
+                trustedRole == 'moderator' ||
+                trustedRole == 'admin' ||
+                trustedRole == 'super_admin',
+            isTrustedAdmin:
+                trustedRole == 'admin' || trustedRole == 'super_admin',
             onSignOut: () => auth.signOut(),
             repository: SupabaseDashboardRepository(Supabase.instance.client),
           ),
@@ -70,9 +79,14 @@ class AuthGate extends StatelessWidget {
 }
 
 class _MfaSessionGate extends StatefulWidget {
-  const _MfaSessionGate({required this.child, super.key});
+  const _MfaSessionGate({
+    required this.child,
+    required this.isPrivilegedAdmin,
+    super.key,
+  });
 
   final Widget child;
+  final bool isPrivilegedAdmin;
 
   @override
   State<_MfaSessionGate> createState() => _MfaSessionGateState();
@@ -81,8 +95,8 @@ class _MfaSessionGate extends StatefulWidget {
 class _MfaSessionGateState extends State<_MfaSessionGate> {
   bool _isLoading = true;
   bool _requiresChallenge = false;
-  bool _hasSupportedPhoneFactor = false;
-  List<PhoneMfaFactorOption> _factors = const [];
+  bool _hasSupportedFactor = false;
+  List<MfaFactorOption> _factors = const [];
   Object? _error;
 
   @override
@@ -100,25 +114,35 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
     try {
       final factors = await auth.mfa.listFactors();
       final assurance = auth.mfa.getAuthenticatorAssuranceLevel();
-      final requiresChallenge =
-          assurance.nextLevel == AuthenticatorAssuranceLevels.aal2 &&
-          assurance.currentLevel != AuthenticatorAssuranceLevels.aal2;
-      final phoneFactors = factors.all
+      final verifiedFactors = factors.all
           .where(
             (factor) =>
                 factor.status == FactorStatus.verified &&
-                factor.factorType == FactorType.phone,
+                (factor.factorType == FactorType.phone ||
+                    factor.factorType == FactorType.totp),
           )
           .map(
-            (factor) =>
-                (id: factor.id, label: factor.friendlyName ?? 'your phone'),
+            (factor) => (
+              id: factor.id,
+              label:
+                  factor.friendlyName ??
+                  (factor.factorType == FactorType.phone
+                      ? 'your phone'
+                      : 'authenticator app'),
+              isPhone: factor.factorType == FactorType.phone,
+            ),
           )
           .toList(growable: false);
+      final requiresChallenge = widget.isPrivilegedAdmin
+          ? verifiedFactors.isEmpty ||
+                assurance.currentLevel != AuthenticatorAssuranceLevels.aal2
+          : assurance.nextLevel == AuthenticatorAssuranceLevels.aal2 &&
+                assurance.currentLevel != AuthenticatorAssuranceLevels.aal2;
       if (mounted) {
         setState(() {
           _requiresChallenge = requiresChallenge;
-          _factors = phoneFactors;
-          _hasSupportedPhoneFactor = phoneFactors.isNotEmpty;
+          _factors = verifiedFactors;
+          _hasSupportedFactor = verifiedFactors.isNotEmpty;
         });
       }
     } on Exception catch (error) {
@@ -129,10 +153,13 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
   }
 
   Future<String> _requestCode(String factorId) async {
-    final challenge = await Supabase.instance.client.auth.mfa.challenge(
-      factorId: factorId,
-      channel: OtpChannel.sms,
-    );
+    final factor = _factors.firstWhere((factor) => factor.id == factorId);
+    final challenge = factor.isPhone
+        ? await Supabase.instance.client.auth.mfa.challenge(
+            factorId: factorId,
+            channel: OtpChannel.sms,
+          )
+        : await Supabase.instance.client.auth.mfa.challenge(factorId: factorId);
     return challenge.id;
   }
 
@@ -185,7 +212,7 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
       );
     }
     if (!_requiresChallenge) return widget.child;
-    if (!_hasSupportedPhoneFactor) {
+    if (!_hasSupportedFactor) {
       return MfaChallengeScreen(
         factors: const [],
         onRequestCode: _requestCode,
@@ -304,7 +331,9 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Password updated successfully. Please sign in again.'),
+            content: Text(
+              'Password updated successfully. Please sign in again.',
+            ),
           ),
         );
       }
@@ -377,8 +406,12 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
                         if (password.length < 12) {
                           return 'Use at least 12 characters';
                         }
-                        final hasUppercase = password.contains(RegExp(r'[A-Z]'));
-                        final hasLowercase = password.contains(RegExp(r'[a-z]'));
+                        final hasUppercase = password.contains(
+                          RegExp(r'[A-Z]'),
+                        );
+                        final hasLowercase = password.contains(
+                          RegExp(r'[a-z]'),
+                        );
                         final hasNumber = password.contains(RegExp(r'[0-9]'));
                         final hasSymbol = password.contains(
                           RegExp(r'[^A-Za-z0-9]'),
