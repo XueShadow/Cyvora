@@ -51,7 +51,7 @@ The independently reconfirmed notification queue behavior is a reliability/priva
 | Supabase Edge Functions | `scam-intelligence` validates authenticated scan requests and composes deterministic analysis, URL reputation, and optional AI assistance. `family-invitations` handles family invitation operations. Shared code under `supabase/functions/_shared/` contains request parsing, URL/network checks, risk assessment, and provider adapters. |
 | PostgreSQL / Supabase | `supabase/migrations/` defines tables, RLS policies, RPCs, quotas, and related schema changes. Client-facing data access is intended to be constrained by RLS; privileged operations use server-side functions/RPCs. Actual deployed schema and grants were not verified. |
 | Android native integration | The notification-listener service queues notification previews in app-private preferences; the Flutter dashboard exposes a manual review flow. The inspected flow does not replace the default SMS application. Device lifecycle behavior was not tested. |
-| Laravel | A separate Laravel scaffold exists. The reviewed `laravel/routes/web.php:5-7` serves the default welcome page; no Cyvora API contract or active Flutter integration was identified in the reviewed routes. |
+| Laravel | The product owner clarified on 2026-11-23 that Laravel is the intended Super Admin panel. The reviewed `laravel/routes/web.php:5-7` still serves only the default welcome page; no admin auth/RBAC or active Flutter/Supabase integration is implemented. |
 | CI/CD | `.github/workflows/ci.yml` runs CI checks. `.github/workflows/android-release.yml` builds/signs/publishes release artifacts from tags or manual dispatch; see F-01 for a conditional trust-boundary concern. Hosted repository rules and secrets were not inspected. |
 
 ## End-to-end user journey
@@ -151,7 +151,7 @@ Evidence: `flutter/lib/dashboard/dashboard_repository.dart:1612-1840`; `supabase
 
 ## Laravel assessment
 
-**Status: NOT VERIFIED at runtime; source indicates a scaffold, not an active app API.** The reviewed Laravel route serves the default welcome view. No Flutter-to-Laravel API integration was identified in the reviewed source paths. PHP was unavailable, so Composer checks, Laravel tests, and runtime behavior were not executed.
+**Status: intended Super Admin panel; implementation remains scaffold-only.** The reviewed Laravel route serves the default welcome view. No Flutter-to-Laravel API integration was identified in the reviewed source paths. At the original audit date PHP was unavailable; the 2026-11-23 follow-up ran the currently available Laravel tests and route inventory (see below).
 
 Evidence: `laravel/routes/web.php:5-7`; `laravel/composer.json:9-11`.
 
@@ -256,3 +256,19 @@ No production systems were modified and no deployment was performed.
 **Disposition:** The original audit is complete; remediation is local and
 uncommitted. Manual owner settings and isolated staging/device validation
 remain release gates.
+
+## Laravel Super Admin follow-up — 2026-11-23
+
+The product owner confirms Laravel is an intentional Cyvora Super Admin
+component, not an optional or unused service. The route inventory contains no
+admin, login, or logout routes; only the public welcome route and a
+development Boost browser-log route were observed. No application RBAC model,
+dashboard, Supabase client, or administrative data path exists. No
+role-separated authorization test is currently possible.
+
+`php artisan test` passes two scaffold tests only. A narrow change to
+`laravel/config/session.php` makes secure cookies default on under production
+while preserving the local and explicit override behavior; the three config
+cases were checked with Artisan. The Boost route's production exposure remains
+conditional on whether dev dependencies are installed; verify `composer
+install --no-dev` and the deployed route list.

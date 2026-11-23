@@ -9,9 +9,9 @@ application identity, or signing configuration was changed.
 
 Cyvora is an existing Flutter + Supabase application with deterministic
 server-side scam analysis, optional AI and URL intelligence, Family Protection,
-and a standalone Laravel scaffold. The current architecture does not require a
-rewrite. Local Flutter analysis/tests, backend tests, Android debug build, and
-the latest GitHub CI run passed.
+and an intended Laravel Super Admin panel. The current architecture does not
+require a rewrite. Local Flutter analysis/tests, backend tests, Android debug
+build, and the latest GitHub CI run passed.
 
 **Production readiness is not established.** The Supabase production migration
 ledger showed `202611150005_mfa_enforcement` as its latest recorded migration.
@@ -42,8 +42,8 @@ See [the architecture map](CYVORA_ARCHITECTURE.md). In brief:
   retention behavior.
 - Android notification capture is a native listener plus an in-app manual
   review flow; it does not replace the default SMS app.
-- Laravel currently serves a default welcome page; no Cyvora API boundary was
-  identified.
+- Laravel is the intended Super Admin component, but currently serves only a
+  default welcome page; no admin auth/RBAC or Cyvora API boundary was found.
 - CI covers Flutter dependency validation, analysis, widget tests, Android
   debug build, and Supabase Node tests. The release workflow is separate.
 
@@ -57,7 +57,7 @@ See [the architecture map](CYVORA_ARCHITECTURE.md). In brief:
 | 4 | MEDIUM | **A queued preview can be lost when scanning fails.** `flutter/lib/dashboard/dashboard_screen.dart:_reviewPendingMessageNotifications` removes the selected item before calling `_analyze`. | A transient network/service error prevents retry from the pending queue. | Remove only after successful processing or explicit user discard; test failure and retry paths. |
 | 5 | MEDIUM | **Notification preview retention is bounded by count, not time.** `flutter/android/app/src/main/kotlin/com/example/cyvora_mobile/MessageNotificationListenerService.kt` stores title/text/package metadata in app-private preferences and caps the queue at 50; no time-based expiry or application-layer encryption was identified. | Sensitive previews may remain on-device until scanned or displaced. App-private storage is not equivalent to application-layer encryption. | Define a short TTL, explicit clear control, minimize stored fields, and evaluate Keystore-backed encryption against the threat model. |
 | 6 | MEDIUM | **Detection metrics are not production-quality evidence.** `supabase/tests/scam-evaluation.test.mjs` contains 14 synthetic cases and reports perfect fixture scores. | It cannot establish real-world precision, recall, F1, or false-positive rates across scam categories or language variants. | Build a moderator-reviewed, representative Filipino/Taglish and English dataset with a held-out split and release gates. |
-| 7 | MEDIUM | **Laravel has no defined Cyvora role.** `laravel/routes/web.php` exposes the default welcome route and `laravel/tests/Feature/ExampleTest.php` is a scaffold test; no client/API integration was identified. | Responsibility, auth boundaries, and deployment ownership are unclear. | Confirm whether Laravel is required and document its contract before implementing or removing anything. |
+| 7 | HIGH | **The intended Laravel Super Admin panel is not implemented.** The product owner confirms its role; `laravel/routes/web.php` exposes only the default welcome route, with no admin login, RBAC, management dashboard, or Supabase integration. | The requested privileged administration workflows and their access controls cannot be used or tested. This is a major incomplete feature, not evidence that Laravel is unnecessary or an exploitable vulnerability. | Define the admin identity, roles, data access, and audit-log contract; then implement deny-by-default routes and role-separated tests before connecting sensitive data. |
 | 8 | MEDIUM | **Integration test coverage is missing for production-critical controls.** `supabase/tests/*.test.mjs` uses mocks/static SQL checks; no PostgreSQL, separate-account RLS, family isolation, or live provider test ran. | Race conditions, schema drift, and deployment errors can pass local CI. | Add isolated PostgreSQL/Supabase integration tests and a staging deployment gate. |
 | 9 | LOW | **Large feature files concentrate unrelated UI and data access.** `flutter/lib/dashboard/dashboard_screen.dart` contains multiple screens and flows; `flutter/lib/dashboard/dashboard_repository.dart` covers many feature domains. | Changes are harder to isolate and review as the app grows. | Extract feature-level widgets/repositories incrementally after release blockers are addressed; no rewrite is recommended. |
 
@@ -79,3 +79,73 @@ This audit adds or updates documentation only. No source fixes, migrations,
 function deployments, secret changes, package-ID changes, or signing changes
 were made. Implementation work should begin only after the owner approves the
 priority and scope.
+
+## Follow-up verification — 2026-11-23
+
+**Current HEAD:** `3d8ed60c450db25e02f754f408e41f25dc1282db` on
+`fix/mlkit-release-crash`. The worktree already contained user changes when
+this follow-up began. No application source, signing material, production
+database, or deployment configuration was changed by this follow-up.
+
+### New release blocker
+
+| Priority | Finding | Evidence and impact | Required action |
+|---|---|---|---|
+| HIGH | **The locally built Android release artifacts do not satisfy the configured production signer check.** `flutter/android/app/build.gradle.kts` uses the local release signing configuration; `flutter/scripts/validate_android_release.py` checks the APK and AAB in `verify_apk_signature()`, `verify_aab_signature()`, and `validate()`, and `.github/workflows/android-release.yml` runs that validator before staging. | The APK and AAB signatures both verify cryptographically and use the same signer, but neither signer matches the validator's configured identity. The artifact validator failed on the APK; an independent AAB check confirmed the same mismatch. These local artifacts cannot pass the repository's release gate. The protected CI signing secret was not accessed, so the CI release identity and workflow outcome remain unverified. This is not evidence that a signing key is compromised. | Have the owner confirm the authorized release identity and verify that both local and protected CI signing configurations use it. Rebuild and rerun the artifact validator. Do not change the expected fingerprint or signing identity to make the check pass without owner approval. |
+
+### Scan-history retention change in the current worktree
+
+The current worktree removes the 120-day cleanup-on-history-read from
+`SupabaseDashboardRepository.loadScanHistory()` in
+`flutter/lib/dashboard/dashboard_repository.dart`. Its accompanying
+`supabase/migrations/202611230001_preserve_scan_history.sql` unschedules the
+`delete-expired-scan-history` job when present and drops its cleanup function.
+The current privacy text in `flutter/lib/auth_screen.dart` says scan history
+is retained until the user deletes it or requests account deletion. These
+changes are consistent with one another, but the migration and deletion
+lifecycle were not tested against PostgreSQL or the deployed project. The
+last observed production migration ledger is from 2026-11-17 and is not a
+current deployment check.
+
+### Follow-up checks
+
+- Flutter analysis: PASS.
+- Flutter tests: PASS — 64.
+- Supabase Node tests: PASS — 90 (unit/mocked and static checks).
+- Android release workflow/ref/artifact policy tests: PASS — 15.
+- Laravel tests: PASS — 2; Composer manifest/lock validation: PASS.
+- Android debug APK, release APK, and release AAB builds: PASS.
+- APK and AAB cryptographic signature checks: PASS; configured production
+  identity check: FAIL for both artifacts.
+- Production PostgreSQL/RLS, deployed Edge Functions, live providers, iOS,
+  and physical-device notification behavior: NOT TESTED. Supabase CLI, Deno,
+  PostgreSQL client, and a running Docker engine were unavailable; no Android
+  device was connected.
+
+See [current test results](CYVORA_TEST_RESULTS.md),
+[production readiness](CYVORA_PRODUCTION_READINESS.md),
+[security audit](CYVORA_SECURITY_AUDIT.md), and the
+[remediation log](CYVORA_REMEDIATION_LOG.md) for details. The production
+readiness verdict remains **NOT PRODUCTION READY**.
+
+### Laravel Super Admin follow-up — 2026-11-23
+
+The product owner confirms Laravel is the intended Super Admin panel. The
+route inventory (`php artisan route:list --json`) contains five routes, with
+no admin, login, or logout routes. The application exposes the framework
+welcome page and a development-only Boost browser-log route; no Laravel
+Supabase client or privileged data path was found. Laravel is therefore
+important but not implemented yet.
+
+The two passing Laravel tests exercise only scaffold behavior; they do not
+cover authentication, role separation, authorization, administrative data
+access, CSRF, audit logging, or Supabase integration. No role-separated test
+can establish access control until those features exist. The unauthenticated
+Boost route is conditional on development dependencies being present in a
+deployment; the production Composer install mode was not inspected.
+
+As a narrow defense-in-depth change, `laravel/config/session.php` now
+defaults the session cookie's `Secure` attribute on for `APP_ENV=production`
+while preserving the local default and explicit environment override. Artisan
+configuration checks passed for all three cases. This does not substitute for
+Super Admin authentication or authorization.

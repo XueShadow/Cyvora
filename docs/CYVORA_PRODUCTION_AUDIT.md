@@ -46,7 +46,7 @@ Production readiness is not established. The local release build is intentionall
 | Scam detection and trusted intelligence | **PARTIALLY IMPLEMENTED** | Deterministic modules, evidence normalization, unavailable/unknown states, moderation, redaction, reviewed examples, dataset evaluation gates, and versioned snapshots are present. A 14-case synthetic English/Filipino/Taglish evaluation fixture passed locally (7 true positives, 7 true negatives); it is only a regression fixture, not evidence of real-world accuracy. |
 | AI providers | **PARTIALLY IMPLEMENTED** | Pushed code calls v2 reservation/completion RPCs for assistant chat and scam analysis, with daily budgets, cooldowns, HMAC deduplication, expiring leases, and a circuit breaker. The 89-test backend suite verifies mock reservation accounting, fallback and timeout paths, plus static SQL contracts. The scan reservation-ID defect is fixed in pushed code. Migration 004 carries the dedupe-order correction without rewriting migration 003. SQL transaction/concurrency behavior, database application, and live provider behavior remain unverified. |
 | URL reputation | **PASS for mocked tests** | Adapter request/response defects and local-host filtering were corrected in the preceding commit. Tests use mocked provider responses; live provider compatibility, pricing, and quotas were not tested. |
-| Laravel | **PARTIALLY IMPLEMENTED** | Laravel is a standalone scaffold; `routes/web.php` serves the default welcome page. No Flutter or Supabase integration was found. Keep it only if a separate Laravel service is intended. |
+| Laravel Super Admin | **NOT IMPLEMENTED** | The product owner confirms Laravel is the intended Super Admin panel. The current Laravel source remains a scaffold: `routes/web.php` serves the default welcome page, with no admin authentication, RBAC, dashboard, or Supabase integration. |
 
 ## Confirmed defects and changes
 
@@ -124,5 +124,5 @@ No production migrations were applied, no production secrets were read or modifi
 3. Apply approved migrations and updated functions to isolated staging, then run concurrent invitation-limit and AI-control tests.
 4. Obtain redacted Huawei crash logs and test on representative Android API levels and OEM devices.
 5. Configure release signing only through the established production key and validate APK/AAB signatures, version code, and install/update behavior before any release.
-6. Confirm whether Laravel is a required service; if so, document and implement its API contract separately.
+6. Define and implement Laravel's Super Admin authentication, role/permission, data-access, and audit-log contracts. Verify production excludes dev dependencies and does not expose the Boost browser-log endpoint.
 7. Establish a Filipino/Taglish evaluation corpus with reviewed labels and measurable false-positive/false-negative release thresholds.

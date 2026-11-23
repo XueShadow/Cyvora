@@ -1,3 +1,16 @@
+# Cyvora Super Admin panel
+
+This Laravel application is the intended Super Admin panel for Cyvora. The
+current codebase is still a Laravel scaffold: it does not yet implement admin
+authentication, roles/permissions, dashboard routes, or a Supabase integration.
+Do not treat the absence of these features as meaning the component is
+unnecessary, and do not connect production user data until the authorization
+model and integration boundary are implemented and tested.
+
+See the [repository architecture](../docs/CYVORA_ARCHITECTURE.md),
+[security audit](../docs/CYVORA_SECURITY_AUDIT.md), and
+[production readiness](../docs/CYVORA_PRODUCTION_READINESS.md).
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

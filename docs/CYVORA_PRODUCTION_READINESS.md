@@ -71,7 +71,7 @@ unavailable or not configured. See [test results](CYVORA_TEST_RESULTS.md).
 | Android debug build | VERIFIED | `flutter build apk --debug --no-pub` passed locally after the notification changes. |
 | Android release/signing | SOURCE HARDENED; OWNER CONFIGURATION REQUIRED | Stable-tag/default-branch checks, least-privilege jobs, gated signing/publishing environments, and draft publishing are implemented. GitHub protected rules, reviewers, secret placement, and signed release behavior were not verified. |
 | iOS | BLOCKED for build/runtime verification | Bundle ID is `com.example.cyvoraMobile`, different from Android `com.example.cyvora_mobile`; no ID was changed. Xcode, signing, provisioning, privacy declarations, and device test were unavailable on Windows. |
-| Laravel | PARTIALLY IMPLEMENTED | Laravel 13 scaffold exposes a default welcome route and example tests; no Cyvora integration contract was identified. Confirm its intended role. |
+| Laravel Super Admin panel | NOT IMPLEMENTED; RELEASE BLOCKER | The owner confirms this is the intended admin panel, but Laravel currently has only the welcome route and development tooling. There is no admin authentication, RBAC, dashboard, or Supabase data boundary. Do not expose production user data until these are implemented and tested. |
 | CI | VERIFIED | GitHub Actions run 44035823882 succeeded for the inspected commit. CI does not execute PostgreSQL/RLS integration, live providers, iOS, or device notification tests. |
 
 ## Baseline checks
@@ -125,8 +125,10 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
    review/release gates.
 6. **iOS verification:** build/sign/test on macOS/Xcode after identity and
    provisioning are confirmed.
-7. **Laravel decision:** document the intended service boundary or explicitly
-   retain it as an unused scaffold.
+7. **Laravel Super Admin:** define the trusted admin identity, role/permission
+   matrix, Supabase access boundary, and audit-log requirements; then implement
+   protected routes and role-separated tests. Laravel is an intended system
+   component, not an unused scaffold.
 8. **Operational checks:** configure provider-side spend limits and verify
    provider model availability, plan terms, retention, and rate limits in
    staging. Request quotas do not guarantee a monetary cap.
@@ -154,3 +156,70 @@ See [detailed test results](CYVORA_TEST_RESULTS.md).
 - [Security audit](CYVORA_SECURITY_AUDIT.md)
 - [Architecture map](CYVORA_ARCHITECTURE.md)
 - [Test results](CYVORA_TEST_RESULTS.md)
+
+## Follow-up assessment — 2026-11-23
+
+**Verdict: NOT PRODUCTION READY.** The current local APK and AAB build, but
+both signatures fail the expected certificate identity check configured in
+the release validator. The repository release workflow runs that validator,
+but its protected CI signing secret was not accessed; the CI signing identity
+and release outcome are therefore unverified. The owner must confirm which
+signing identity is authorized and supply the matching signing configuration;
+changing the validator's expected identity is not a safe workaround.
+
+The current worktree is at commit
+`3d8ed60c450db25e02f754f408e41f25dc1282db` on
+`fix/mlkit-release-crash`. It was already dirty before this follow-up. No
+source, signing, production database, GitHub, or provider configuration was
+changed.
+
+| Check | Current result |
+|---|---|
+| Flutter analysis / Flutter tests | PASS / PASS (64) |
+| Supabase Node tests | PASS (90); mocks/static assertions, not PostgreSQL |
+| Android release policy tests | PASS (15) |
+| Laravel tests / Composer validation | PASS (2) / PASS |
+| Android debug, release APK, release AAB builds | PASS |
+| APK and AAB signature validity | PASS |
+| APK/AAB identity against the validator's expected production certificate | **FAIL** — both use the same different signer |
+| PostgreSQL migration/RLS integration and current deployed migration ledger | NOT TESTED / NOT RE-VERIFIED |
+| Deno Edge Function runtime and live provider calls | NOT TESTED |
+| iOS build/signing | BLOCKED — Xcode unavailable on Windows |
+| Physical Android notification behavior | NOT TESTED — no Android device connected |
+
+The worktree's new `202611230001_preserve_scan_history.sql` cancels the
+scheduled scan-history cleanup job and drops its function. The corresponding
+client-side 120-day deletion was removed and the privacy statement now says
+scan history remains until user or account deletion. This behavior is
+internally aligned in source but has not been exercised against PostgreSQL or
+verified in a deployed project. The last production ledger observation was
+2026-11-17, so it cannot establish the current deployment state.
+
+Next gates:
+
+1. Owner confirms the authorized Android release certificate; use the matching
+   protected signing material and rerun release artifact validation.
+2. Verify migrations, including the scan-history change, in isolated staging;
+   run the separate-account RLS and family lifecycle suite before any
+   production change.
+3. Verify deployed Edge Function revisions and provider configuration in
+   staging without exposing credentials.
+4. Perform physical-device notification and iOS validation on supported
+   hardware/toolchains.
+
+See [follow-up test results](CYVORA_TEST_RESULTS.md),
+[security follow-up](CYVORA_SECURITY_AUDIT.md), and the
+[remediation log](CYVORA_REMEDIATION_LOG.md).
+
+### Laravel Super Admin follow-up
+
+The current Laravel test suite has two passing scaffold tests, but no
+authentication, admin routes, RBAC, dashboard, or Supabase connection exists
+to exercise. `php artisan route:list` showed no admin/login/logout routes.
+`SESSION_SECURE_COOKIE` now defaults on for production via
+`laravel/config/session.php`; the local default and explicit override remain
+supported. A development-only Boost browser-log endpoint is registered in the
+development environment; production dependency installation and route absence
+must be verified separately. Role-separated tests and data-isolation tests
+remain blocked until the admin implementation and its permission model are
+defined.

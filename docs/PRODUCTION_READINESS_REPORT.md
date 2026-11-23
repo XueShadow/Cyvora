@@ -7,10 +7,11 @@
 ## Architecture and operational boundary
 
 Cyvora remains a Flutter/Dart client, Supabase Auth/PostgreSQL/Edge Functions
-backend, Android Kotlin notification-listener integration, and a separate
-Laravel scaffold. Laravel's reviewed routes remain the framework welcome
-route with example tests; no active Flutter/Supabase API contract was found.
-It should remain separate until a real backend responsibility is approved.
+backend, Android Kotlin notification-listener integration, and an intended
+Laravel Super Admin panel. The Laravel code is still scaffold-only: it has
+only the framework welcome route and no admin authentication, RBAC, dashboard,
+or active Supabase integration. The panel is an important intended component,
+not an unused scaffold.
 
 No production migration, Edge Function, signed release, provider request, or
 GitHub repository setting was changed. The previous observed production
@@ -30,7 +31,7 @@ function revisions were not checked.
 | AI spending | REQUIRES PROVIDER-SIDE LIMITS | Request-count quotas do not cap dollars. Prices vary by configured provider/model; no token costs or financial budget are fabricated. |
 | Scam detection | SYNTHETIC FIXTURE ONLY | Node tests report 7 TP, 0 FP, 7 TN, 0 FN on a 14-example fixture. This is not a real-world accuracy estimate. A reviewed and held-out multilingual/Filipino dataset is still required. |
 | Android platform | DEBUG BUILD VERIFIED; DEVICE NOT TESTED | Debug APK build passes. No physical device, OEM-specific background/permission behavior, or release signing was tested. |
-| Laravel | SEPARATE SCAFFOLD | No production integration contract found; PHP/Composer unavailable for runtime tests. |
+| Laravel Super Admin | NOT IMPLEMENTED | The owner confirms Laravel is the intended panel; no admin authentication, RBAC, dashboard, or Supabase integration exists. Current Laravel tests cover only scaffold behavior. |
 | Dependencies | NOT VERIFIED | `dart pub audit` is not present in the installed SDK; PHP/Composer and advisory scanners were unavailable; Laravel has no npm lockfile. |
 | iOS | NOT TESTED | Xcode/signing/device validation is unavailable on this Windows environment. |
 
@@ -58,11 +59,23 @@ See [Testing and Validation](./TESTING_AND_VALIDATION.md) and
    retention in staging.
 4. Validate notification encryption, expiry, consent revocation, key-loss
    handling, and process-death behavior on supported devices.
-5. Complete dependency advisory scans, Laravel test execution, and iOS
-   platform validation where toolchains exist.
+5. Implement and role-test Laravel Super Admin authentication, authorization,
+   Supabase access boundaries, and audit logging; complete dependency advisory
+   scans and iOS platform validation where toolchains exist.
 6. Review detection metrics on a sufficiently representative held-out dataset.
 7. An owner reviews the signed artifacts and publishes the GitHub draft
    release manually.
 
 No production changes were made. Passing local checks do not constitute
 production certification.
+
+## Laravel Super Admin follow-up — 2026-11-23
+
+The owner confirms Laravel is the intended Super Admin panel. Runtime
+inventory found five routes and no admin, login, or logout routes; the
+two passing Laravel tests cover only the scaffold. No role model, dashboard,
+or Supabase integration exists, so authorization and user/family isolation
+tests remain blocked. The session cookie now defaults to `Secure` under
+`APP_ENV=production`; local and explicit override behavior were verified.
+The development Boost browser-log route must be confirmed absent from the
+production route list.

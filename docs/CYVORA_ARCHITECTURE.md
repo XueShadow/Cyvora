@@ -34,7 +34,7 @@ Supabase PostgreSQL
   └─ versioned migrations
 
 Laravel 13
-  └─ standalone framework scaffold; default public welcome route
+  └─ intended Cyvora Super Admin panel; current code is scaffold-only
 
 GitHub Actions
   ├─ CI: Flutter dependency check, analysis, widget tests, Android debug APK
@@ -44,6 +44,28 @@ GitHub Actions
 ```
 
 ## Component responsibilities and boundaries
+
+### Cross-component communication
+
+The diagram distinguishes implemented traffic from the intended but
+unimplemented Super Admin integration. A dashed arrow means no application
+authentication, API client, or data path was found in the Laravel source.
+
+```mermaid
+flowchart LR
+  admin[Super Admin operator] -->|intended access; login not implemented| laravel[Laravel 13 panel]
+  user[Regular Cyvora user] --> flutter[Flutter mobile app]
+  flutter -->|user authentication| auth[Supabase Auth]
+  flutter -->|scan and family requests| edge[Supabase Edge Functions]
+  flutter -->|user-scoped queries| db[(Supabase PostgreSQL with RLS)]
+  edge -->|privileged server-side operations| db
+  laravel -.->|no implemented integration found| supabase[Supabase]
+```
+
+Laravel is an important intended system component, but it currently has no
+application routes beyond the public welcome page, no admin authentication or
+authorization, and no Supabase client or data connection. The dashed edge
+must not be read as an implemented service-role connection.
 
 ### Flutter
 
@@ -90,10 +112,12 @@ signing were not tested on this Windows host.
 
 ### Laravel
 
-`laravel/` is a Laravel 13 scaffold with a default root welcome route and
-example tests. No Cyvora API contract or Flutter/Supabase integration was
-identified. Its intended role needs an owner decision; this audit does not
-remove or replace it.
+`laravel/` is the intended Cyvora Super Admin panel. The current implementation
+is a Laravel 13 scaffold with a default root welcome route and example tests;
+it has no admin login, user/role model, privileged routes, dashboard data
+source, or Supabase client. No direct Flutter-to-Laravel or Laravel-to-Supabase
+integration exists in the inspected source. The component is not classified as
+unused; it is a security-critical, incomplete part of the target architecture.
 
 ## Assessment
 
@@ -104,7 +128,9 @@ remove or replace it.
   features and are large. Incremental feature-level extraction could improve
   maintainability after the higher-priority deployment and verification gaps
   are resolved.
-- Laravel has no documented production responsibility yet.
+- The Super Admin responsibility for Laravel is confirmed, but the
+  authentication, authorization, administrative operations, and Supabase
+  integration are not implemented.
 - CI validates local/client code and mocked/static backend behavior. It does
   not run PostgreSQL migrations, RLS integration tests, deployed Edge Function
   tests, live provider calls, iOS builds, or device notification tests.
@@ -112,3 +138,43 @@ remove or replace it.
   [the full audit](CYVORA_FULL_CODE_AUDIT.md),
   [security audit](CYVORA_SECURITY_AUDIT.md), and
   [test results](CYVORA_TEST_RESULTS.md).
+
+## Follow-up — 2026-11-23
+
+The current worktree changes scan-history retention. The repository no longer
+deletes records older than 120 days during history reads; migration
+`202611230001_preserve_scan_history.sql` cancels the scheduled cleanup and
+drops its function. The privacy notice now describes retention until the user
+deletes history or requests account deletion. This migration has not been
+executed against a local or staging database, and the production ledger was
+not rechecked after its last 2026-11-17 observation.
+
+Locally built Android release artifacts are blocked at identity verification:
+APK and AAB signatures are valid but do not match the expected identity
+enforced by `flutter/scripts/validate_android_release.py`. Protected CI
+signing secrets were not accessed, so the workflow's signing identity remains
+unverified. Build and test results are recorded in
+[CYVORA_TEST_RESULTS.md](CYVORA_TEST_RESULTS.md); no signing identity was
+changed.
+
+### Laravel Super Admin audit — 2026-11-23
+
+The product owner confirms Laravel's intended role is Cyvora's Super Admin
+panel. Source and runtime route inspection show that the implementation is
+still a framework scaffold: five routes are registered, with no `/admin`,
+login, or logout routes; one route is the public welcome page and one is
+Laravel Boost's development browser-log endpoint. No app Supabase client,
+service-role credential, dashboard data source, or admin action was found.
+This is an incomplete security-critical component, not an unused component.
+
+No role-separated authorization test can be performed until authentication,
+admin roles, and administrative routes exist. The two current Laravel tests
+cover only the scaffold. `config/session.php` now defaults secure cookies on
+when `APP_ENV=production`, preserves the local non-HTTPS default, and still
+honors `SESSION_SECURE_COOKIE`; the local, production, and explicit-override
+configurations were checked with Artisan.
+
+The production behavior of Boost's browser-log endpoint remains conditional:
+it is a development dependency, but the deployment install mode was not
+verified. Ensure production uses `composer install --no-dev` and verify the
+endpoint is absent from the deployed route list.

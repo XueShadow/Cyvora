@@ -7,7 +7,9 @@ family security features.
 
 - [`flutter/`](flutter/) - Flutter application and app-specific setup guide.
 - [`supabase/`](supabase/) - Supabase migrations and Edge Functions.
-- [`laravel/`](laravel/) - Laravel project.
+- [`laravel/`](laravel/) - Intended Cyvora Super Admin panel. The current
+  Laravel code is still scaffold-only; see the
+  [architecture and readiness reports](docs/CYVORA_ARCHITECTURE.md).
 - [`docs/`](docs/) - Production readiness, audit, and security reports.
 
 ## Run the app

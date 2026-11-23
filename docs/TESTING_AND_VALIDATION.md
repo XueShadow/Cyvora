@@ -63,3 +63,17 @@ staging environment.
 - See [Security Remediation](./SECURITY_REMEDIATION_REPORT.md),
   [Production Readiness](./PRODUCTION_READINESS_REPORT.md), and
   [Release Security Guide](./RELEASE_SECURITY_GUIDE.md).
+
+## Laravel Super Admin follow-up — 2026-11-23
+
+- `php artisan test`: PASS, 2 tests; coverage is limited to the scaffold's
+  public welcome route.
+- `php artisan route:list --json`: 5 routes; no admin/login/logout routes.
+  The current development install includes the Boost browser-log route.
+- Session cookie configuration: verified with Artisan as false by default in
+  local, true by default in production, and false when explicitly overridden.
+- No admin authentication, RBAC, management routes, or Supabase integration
+  exists yet, so role-separated authorization and admin data-isolation tests
+  cannot be run.
+- See the [security audit](./CYVORA_SECURITY_AUDIT.md) and
+  [architecture diagram](./CYVORA_ARCHITECTURE.md).
