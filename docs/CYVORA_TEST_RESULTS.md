@@ -36,10 +36,13 @@
 | `flutter analyze --fatal-infos` | **PASS** |
 | `flutter test --no-pub` | **PASS — 70 tests** |
 | `node --test supabase/tests/*.test.mjs` | **PASS — 102 tests** |
-| `python -m unittest discover -s flutter/scripts -p "test_*.py"` | **PASS — 15 tests** |
+| `py -3 -m unittest discover -s flutter/scripts -p "test_*.py"` | **PASS — 16 tests** |
 | `flutter build apk --debug --no-pub` | **PASS** — Gradle emitted a Java native-access warning. |
+| `flutter build apk --release --no-pub` | **PASS** — local signed release build completed; the configured production identity check remains blocked. |
+| `flutter build appbundle --release --no-pub` | **PASS** — local signed release build completed; the configured production identity check remains blocked. |
+| Android release artifact validator | **FAIL** — local APK signer does not match the fixed production certificate fingerprint. |
 | PostgreSQL migration and pgTAP suites | **NOT RUN** — Docker daemon unavailable; forward migration remains unapplied. |
-| Laravel tests and Pint | **NOT RERUN** — no Laravel application code changed in the integration merge. |
+| Laravel tests | **PASS — 28 tests, 125 assertions** |
 
 The current fix branch already enforced privileged MFA enrollment and AAL2.
 The integration retains that implementation and adds regression tests. The

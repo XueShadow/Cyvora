@@ -35,6 +35,14 @@ class AndroidReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("ref: ${{ needs.validate-release.outputs.target_sha }}", WORKFLOW)
         self.assertIn("--tag \"$RELEASE_TAG\"", WORKFLOW)
 
+    def test_signing_keystore_is_verified_before_building(self) -> None:
+        self.assertRegex(
+            WORKFLOW,
+            r"(?s)Verify signing keystore and alias.*?"
+            r"keytool -list.*?"
+            r"Build Android App Bundle",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

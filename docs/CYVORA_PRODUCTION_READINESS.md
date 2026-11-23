@@ -90,3 +90,40 @@ was changed during this audit.
 - [Supabase integration](CYVORA_SUPABASE_INTEGRATION.md)
 - [Test results](CYVORA_TEST_RESULTS.md)
 - [Deployment guide](CYVORA_SUPER_ADMIN_DEPLOYMENT.md)
+## 2026-11-23 integration snapshot
+
+**Verdict:** **NOT READY — controlled staging and human approval remain
+required.**
+
+The current integration commit passes local source checks, but it does not meet
+the definition of a production-ready or production-candidate release.
+
+### Verified locally
+
+| Check | Result |
+|---|---|
+| Flutter analysis | PASS |
+| Flutter tests | PASS — 70 |
+| Supabase Node tests | PASS — 102 |
+| Laravel Composer validation | PASS |
+| Laravel PHPUnit | PASS — 28 tests, 125 assertions |
+| Android release policy tests | PASS — 16 |
+| Android release APK build | PASS |
+| Android release AAB build | PASS |
+
+### Failed
+
+- The Android release artifact validator rejects the locally built APK because
+  its signer differs from the fixed production certificate. This must be
+  resolved by the owner; the certificate fingerprint must not be weakened or
+  changed without authorization.
+
+### Blocked
+
+- Disposable PostgreSQL migration and pgTAP execution.
+- Hosted Supabase staging deployment and RLS verification.
+- Live Edge Function/provider behavior.
+- GitHub branch and Environment protection verification.
+- Android physical-device/OEM validation.
+- iOS build and device validation.
+- Human approval of merge and publication.
