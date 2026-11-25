@@ -85,7 +85,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Smarter Protection. Safer Family.'), findsOneWidget);
+    expect(find.text('Scan. Check. Stay Safe.'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.pump(const Duration(milliseconds: 2200));
@@ -109,7 +109,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Smarter Protection. Safer Family.'), findsOneWidget);
+    expect(find.text('Scan. Check. Stay Safe.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -117,7 +117,7 @@ void main() {
     await tester.pumpWidget(const MyApp(supabaseConfigured: false));
 
     expect(find.byKey(const Key('brand-title')), findsOneWidget);
-    expect(find.text('Smarter Protection. Safer Family.'), findsOneWidget);
+    expect(find.text('Scan. Check. Stay Safe.'), findsOneWidget);
     expect(find.byKey(const Key('first-name-field')), findsNothing);
     expect(find.byKey(const Key('last-name-field')), findsNothing);
     expect(find.byKey(const Key('email-field')), findsOneWidget);
@@ -2473,7 +2473,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Smarter protection.\nSafer family.'), findsOneWidget);
+    expect(
+      find.text('Modern protection for your account, messages, and family.'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('email-field')), findsOneWidget);
   });
 
