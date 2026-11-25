@@ -48,6 +48,35 @@ this integration because the Docker daemon is unavailable. Current integration
 test results are recorded in [`docs/CYVORA_TEST_RESULTS.md`](docs/CYVORA_TEST_RESULTS.md).
 They do not verify live provider behavior, hosted staging/production state,
 or current GitHub settings.
+
+## Architecture
+
+The Flutter app is organized incrementally around MVP boundaries: application
+setup and dependency injection live in `flutter/lib/app/`, shared services and
+UI foundations in `flutter/lib/core/`, backend adapters in
+`flutter/lib/data/`, and feature code in `flutter/lib/features/`. Authentication
+and dashboard operations use Presenters and repository contracts; some
+dashboard subviews and state remain co-located pending further extraction.
+See the [Flutter architecture guide](flutter/ARCHITECTURE.md) for the current
+structure and migration notes.
+
+## Validation and deployment status
+
+GitHub Actions runs Flutter dependency validation, analysis, tests, an Android
+debug APK build, a Web build, and the Supabase Node test suite on pushes and
+pull requests. The latest recorded local validation passed Flutter analysis,
+76 Flutter tests, the Android debug APK and Web builds, 106 Supabase Node
+tests, and 28 Laravel tests (125 assertions). These are local/source-level
+checks; they do not establish live Supabase, provider, or device behavior.
+
+CI builds artifacts but does not deploy the Web app, Supabase migrations, or
+Edge Functions. Android release automation creates a draft release and depends
+on owner-configured protected GitHub Environments; it does not automatically
+publish releases. No production deployment is claimed. See
+[`docs/DEPLOYMENT_STATUS.md`](docs/DEPLOYMENT_STATUS.md) and the
+[end-to-end test report](docs/E2E_TEST_REPORT.md) for current limits and
+unverified integrations.
+
 The push/PR checks are defined in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Read the
 [production readiness report](docs/CYVORA_PRODUCTION_READINESS.md),
