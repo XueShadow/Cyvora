@@ -258,7 +258,7 @@ class _AuthCallbackRecoveryScreenState
               children: [
                 const Icon(
                   Icons.mark_email_read_outlined,
-                  color: Color(0xFF34E89B),
+                  color: Color(0xFF8B5CF6),
                   size: 64,
                 ),
                 const SizedBox(height: 20),
@@ -266,7 +266,7 @@ class _AuthCallbackRecoveryScreenState
                   'Continue to Cyvora',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFFEAF4FF),
+                    color: Color(0xFFFFFFFF),
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                   ),
@@ -278,7 +278,7 @@ class _AuthCallbackRecoveryScreenState
                   'Continue to sign in; if it is not confirmed, request a new '
                   'link and open it in the same browser where you signed up.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF9BB2C9), height: 1.55),
+                  style: TextStyle(color: Color(0xFFC4B5FD), height: 1.55),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -370,7 +370,7 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
                   children: [
                     const Icon(
                       Icons.shield_rounded,
-                      color: Color(0xFF34E89B),
+                      color: Color(0xFF8B5CF6),
                       size: 64,
                     ),
                     const SizedBox(height: 16),
@@ -378,7 +378,7 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
                       'Choose a new password',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Color(0xFFEAF4FF),
+                        color: Color(0xFFFFFFFF),
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                       ),

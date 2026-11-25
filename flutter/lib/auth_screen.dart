@@ -1,16 +1,18 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'splash_screen.dart' show CyvoraShieldLogo;
 import 'supabase_config.dart';
+import 'theme/cyvora_theme.dart';
+import 'widgets/cyvora_components.dart';
+import 'widgets/cyvora_logo.dart';
 
-const _navy = Color(0xFFEAF4FF);
-const _blue = Color(0xFF34E89B);
-const _muted = Color(0xFF9BB2C9);
-const _green = Color(0xFF34F5AA);
-const _authCardColor = Color(0xFF09283D);
-const _authInput = Color(0xFF0B2A3D);
-const _authBorder = Color(0xFF16445A);
+const _navy = CyvoraColors.text;
+const _blue = CyvoraColors.light;
+const _muted = CyvoraColors.secondaryText;
+const _green = CyvoraColors.electric;
+const _authCardColor = CyvoraColors.surface;
+const _authInput = CyvoraColors.surfaceSecondary;
+const _authBorder = CyvoraColors.border;
 const _termsVersion = 'v2';
 const _privacyPolicyVersion = 'v13';
 const _termsSections = [
@@ -463,20 +465,13 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF061C2D), Color(0xFF041523), Color(0xFF08263A)],
-          ),
-        ),
+      body: CyvoraBackground(
         child: Stack(
           children: [
             const Positioned(
               top: -150,
               right: -100,
-              child: _GlowCircle(size: 360, color: Color(0x2234F5AA)),
+              child: _GlowCircle(size: 360, color: Color(0x337C3AED)),
             ),
             SafeArea(
               child: LayoutBuilder(
@@ -558,7 +553,7 @@ class _AuthScreenState extends State<AuthScreen> {
         border: Border.all(color: _authBorder),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x3320D994),
+            color: Color(0x337C3AED),
             blurRadius: 32,
             offset: Offset(0, 12),
           ),
@@ -580,8 +575,8 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(height: 7),
           Text(
             _isCreatingAccount
-                ? 'A safer way to look out for the people you love.'
-                : 'Sign in to continue to your Cyvora account.',
+                ? 'Join us for a safer digital world.'
+                : 'Sign in to continue.',
             style: const TextStyle(color: _muted, height: 1.45, fontSize: 14),
           ),
           SizedBox(height: compact ? 20 : 26),
@@ -898,8 +893,8 @@ class _AuthScreenState extends State<AuthScreen> {
               key: const Key('submit-auth'),
               onPressed: _isBusy ? null : _submit,
               style: FilledButton.styleFrom(
-                backgroundColor: _blue,
-                foregroundColor: const Color(0xFF03251E),
+                backgroundColor: CyvoraColors.electric,
+                foregroundColor: CyvoraColors.onPrimary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -911,7 +906,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       height: 21,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFF03251E),
+                        color: CyvoraColors.onPrimary,
                       ),
                     )
                   : FittedBox(
@@ -1021,12 +1016,12 @@ class _AuthScreenState extends State<AuthScreen> {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF123D3D) : Colors.transparent,
+          color: isSelected ? CyvoraColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           boxShadow: isSelected
               ? const [
                   BoxShadow(
-                    color: Color(0x3334F5AA),
+                    color: Color(0x668B5CF6),
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
@@ -1157,41 +1152,9 @@ class _BrandHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        CyvoraShieldLogo(size: compact ? 64 : 82),
-        SizedBox(height: compact ? 3 : 7),
-        RichText(
-          key: const Key('brand-title'),
-          text: TextSpan(
-            style: TextStyle(
-              fontSize: compact ? 36 : 42,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -2,
-            ),
-            children: [
-              TextSpan(
-                text: 'Cyv',
-                style: TextStyle(color: _navy),
-              ),
-              TextSpan(
-                text: 'ora',
-                style: TextStyle(color: _blue),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          'Smarter Protection. Safer Family.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _navy,
-            fontSize: compact ? 13 : 15,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+    return CyvoraBrandLockup(
+      key: const Key('brand-title'),
+      compact: compact,
     );
   }
 }
@@ -1210,20 +1173,20 @@ class _WelcomePanel extends StatelessWidget {
           CyvoraShieldLogo(size: 92),
           SizedBox(height: 22),
           Text(
-            'Cyvora',
+            'CYVORA',
             style: TextStyle(
-              color: _navy,
+              color: CyvoraColors.text,
               fontSize: 56,
               height: 1,
               fontWeight: FontWeight.w800,
-              letterSpacing: -2,
+              letterSpacing: 1.2,
             ),
           ),
           SizedBox(height: 18),
           Text(
-            'Smarter protection.\nSafer family.',
+            'Scan. Check.\nStay Safe.',
             style: TextStyle(
-              color: _navy,
+              color: CyvoraColors.text,
               fontSize: 36,
               height: 1.2,
               fontWeight: FontWeight.w700,
@@ -1234,8 +1197,12 @@ class _WelcomePanel extends StatelessWidget {
           SizedBox(
             width: 420,
             child: Text(
-              'Sign in to keep the people you care about safer and connected.',
-              style: TextStyle(color: _muted, fontSize: 17, height: 1.6),
+              'Modern protection for your account, messages, and family.',
+              style: TextStyle(
+                color: CyvoraColors.secondaryText,
+                fontSize: 17,
+                height: 1.6,
+              ),
             ),
           ),
         ],
@@ -1305,14 +1272,7 @@ class EmailConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF061C2D), Color(0xFF041523), Color(0xFF08263A)],
-          ),
-        ),
+      body: CyvoraBackground(
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -1345,7 +1305,7 @@ class EmailConfirmationScreen extends StatelessWidget {
                               border: Border.all(color: _authBorder),
                               boxShadow: const [
                                 BoxShadow(
-                                  color: Color(0x3320D994),
+                                  color: Color(0x667C3AED),
                                   blurRadius: 32,
                                   offset: Offset(0, 12),
                                 ),
@@ -1357,7 +1317,7 @@ class EmailConfirmationScreen extends StatelessWidget {
                                   width: 76,
                                   height: 76,
                                   decoration: const BoxDecoration(
-                                    color: Color(0xFF0D3B3D),
+                                    color: CyvoraColors.deep,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -1458,8 +1418,8 @@ class EmailConfirmationScreen extends StatelessWidget {
                                     key: const Key('back-to-login'),
                                     onPressed: onBackToLogin,
                                     style: FilledButton.styleFrom(
-                                      backgroundColor: _green,
-                                      foregroundColor: const Color(0xFF03251E),
+                                      backgroundColor: CyvoraColors.electric,
+                                      foregroundColor: CyvoraColors.onPrimary,
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),

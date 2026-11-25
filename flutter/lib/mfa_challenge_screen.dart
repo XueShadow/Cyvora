@@ -174,7 +174,7 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
                           ? Icons.sms_outlined
                           : Icons.security_outlined,
                       size: 52,
-                      color: Color(0xFF34E89B),
+                      color: Color(0xFF8B5CF6),
                     ),
                     const SizedBox(height: 16),
                     Text(

@@ -218,10 +218,10 @@ class _SafetyAssistantPageState extends State<SafetyAssistantPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('safety-assistant-page'),
-      backgroundColor: const Color(0xFF041523),
+      backgroundColor: const Color(0xFF10051F),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF061C2D),
-        foregroundColor: const Color(0xFFEAF4FF),
+        backgroundColor: const Color(0xFF1A0833),
+        foregroundColor: const Color(0xFFFFFFFF),
         leading: IconButton(
           key: const Key('safety-assistant-back'),
           tooltip: 'Back',
@@ -242,7 +242,7 @@ class _SafetyAssistantPageState extends State<SafetyAssistantPage> {
                 ),
                 Text(
                   'Ask about staying safe online',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF9BB2C9)),
+                  style: TextStyle(fontSize: 11, color: Color(0xFFC4B5FD)),
                 ),
               ],
             ),
@@ -254,7 +254,7 @@ class _SafetyAssistantPageState extends State<SafetyAssistantPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF061C2D), Color(0xFF041523)],
+            colors: [Color(0xFF1A0833), Color(0xFF10051F)],
           ),
         ),
         child: SafeArea(
@@ -345,14 +345,14 @@ class _AssistantMessageBubble extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 14, left: 40),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF0D5B64),
+            color: const Color(0xFF3B0764),
             borderRadius: BorderRadius.circular(18)
                 .copyWith(bottomRight: const Radius.circular(5)),
           ),
           child: Text(
             turn.text,
             style: const TextStyle(
-              color: Color(0xFFF0FAFF),
+              color: Color(0xFFFFFFFF),
               fontSize: 14,
               height: 1.4,
             ),
@@ -379,7 +379,7 @@ class _AssistantMessageBubble extends StatelessWidget {
                       style: TextStyle(
                         color: turn.isError
                             ? const Color(0xFFFF9999)
-                            : const Color(0xFFEAF4FF),
+                            : const Color(0xFFFFFFFF),
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -391,13 +391,13 @@ class _AssistantMessageBubble extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF64F2CC).withValues(alpha: 0.1),
+                        color: const Color(0xFFC4B5FD).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
                         'AI',
                         style: TextStyle(
-                          color: Color(0xFF64F2CC),
+                          color: Color(0xFFC4B5FD),
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.4,
@@ -414,13 +414,13 @@ class _AssistantMessageBubble extends StatelessWidget {
                     vertical: 13,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF082538),
+                    color: const Color(0xFF291451),
                     borderRadius: BorderRadius.circular(16)
                         .copyWith(bottomLeft: const Radius.circular(5)),
                     border: Border.all(
                       color: turn.isError
                           ? const Color(0xFF803F52)
-                          : const Color(0xFF16445A),
+                          : const Color(0xFF452477),
                     ),
                   ),
                   child: SelectionArea(
@@ -430,7 +430,7 @@ class _AssistantMessageBubble extends StatelessWidget {
                         turn.text,
                         color: turn.isError
                             ? const Color(0xFFFF9999)
-                            : const Color(0xFFDBE8F2),
+                            : const Color(0xFFC4B5FD),
                       ),
                     ),
                   ),
@@ -473,7 +473,7 @@ List<Widget> _formatAssistantResponse(String text, {required Color color}) {
     if (heading != null) {
       flushParagraph();
       final headingStyle = style.copyWith(
-        color: const Color(0xFFEAF4FF),
+        color: const Color(0xFFFFFFFF),
         fontSize: 15,
         fontWeight: FontWeight.w700,
       );
@@ -503,13 +503,13 @@ List<Widget> _formatAssistantResponse(String text, {required Color color}) {
                         child: Icon(
                           Icons.circle,
                           size: 5,
-                          color: Color(0xFF64F2CC),
+                          color: Color(0xFFC4B5FD),
                         ),
                       )
                     : Text(
                         '${numbered!.group(1)}.',
                         style: style.copyWith(
-                          color: const Color(0xFF64F2CC),
+                          color: const Color(0xFFC4B5FD),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -559,8 +559,8 @@ TextSpan _assistantInlineText(String text, TextStyle style) {
           text: token.substring(1, token.length - 1),
           style: style.copyWith(
             fontFamily: 'monospace',
-            color: const Color(0xFF8EF4D5),
-            backgroundColor: const Color(0xFF103B45),
+            color: const Color(0xFFE9D5FF),
+            backgroundColor: const Color(0xFF2E1065),
           ),
         ),
       );
@@ -596,8 +596,8 @@ class _MessageComposer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: const BoxDecoration(
-        color: Color(0xFF061C2D),
-        border: Border(top: BorderSide(color: Color(0xFF16445A))),
+        color: Color(0xFF1A0833),
+        border: Border(top: BorderSide(color: Color(0xFF452477))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -621,7 +621,7 @@ class _MessageComposer extends StatelessWidget {
                     decoration: InputDecoration(
                       hintText: 'Ask a question or tell me what happened...',
                       filled: true,
-                      fillColor: const Color(0xFF082538),
+                      fillColor: const Color(0xFF291451),
                       counterText: '',
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -629,11 +629,11 @@ class _MessageComposer extends StatelessWidget {
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: const BorderSide(color: Color(0xFF16445A)),
+                        borderSide: const BorderSide(color: Color(0xFF452477)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: const BorderSide(color: Color(0xFF16445A)),
+                        borderSide: const BorderSide(color: Color(0xFF452477)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
@@ -653,8 +653,8 @@ class _MessageComposer extends StatelessWidget {
                           ? null
                           : onSend,
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF34D9A2),
-                        foregroundColor: const Color(0xFF04251E),
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        foregroundColor: const Color(0xFFFFFFFF),
                         minimumSize: const Size(48, 48),
                       ),
                       icon: const Icon(Icons.arrow_upward_rounded),
@@ -672,7 +672,7 @@ class _MessageComposer extends StatelessWidget {
               children: [
                 Icon(
                   Icons.lock_outline_rounded,
-                  color: Color(0xFF8DA7BB),
+                  color: Color(0xFFA78BFA),
                   size: 13,
                 ),
                 SizedBox(width: 6),
@@ -680,7 +680,7 @@ class _MessageComposer extends StatelessWidget {
                   child: Text(
                     'Chats are saved only on this device, not synced or added to Scan History. Clearing app or browser data removes them. Minimized text may be sent to a configured AI provider (provider data policies apply). Never include passwords or one-time codes.',
                     style: TextStyle(
-                      color: Color(0xFF8DA7BB),
+                      color: Color(0xFFA78BFA),
                       fontSize: 10,
                       height: 1.35,
                     ),
@@ -708,7 +708,7 @@ class _TypingIndicator extends StatelessWidget {
         children: [
           _AssistantAvatar(size: 34),
           SizedBox(width: 9),
-          Text(label, style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12)),
+          Text(label, style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12)),
           SizedBox(width: 10),
           SizedBox(
             width: 15,
@@ -732,13 +732,13 @@ class _AssistantAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFF0D5B64),
+        color: const Color(0xFF3B0764),
         borderRadius: BorderRadius.circular(size * 0.35),
-        border: Border.all(color: const Color(0xFF2C9B89)),
+        border: Border.all(color: const Color(0xFF7C3AED)),
       ),
       child: Icon(
         Icons.smart_toy_outlined,
-        color: const Color(0xFF64F2CC),
+        color: const Color(0xFFC4B5FD),
         size: size * 0.55,
       ),
     );

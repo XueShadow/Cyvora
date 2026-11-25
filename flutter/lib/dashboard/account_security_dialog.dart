@@ -517,7 +517,7 @@ class _AccountSecurityDialogState extends State<AccountSecurityDialog> {
                 Text(
                   _message!,
                   key: const Key('account-security-message'),
-                  style: const TextStyle(color: Color(0xFF34E89B)),
+                  style: const TextStyle(color: Color(0xFF8B5CF6)),
                 ),
                 const SizedBox(height: 10),
               ],

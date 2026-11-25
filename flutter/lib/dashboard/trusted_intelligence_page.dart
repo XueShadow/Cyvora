@@ -296,7 +296,7 @@ class _TrustedIntelligencePageState extends State<TrustedIntelligencePage> {
               children: [
                 const Text(
                   'Reports are screened for privacy, reviewed by people, and kept out of the live detector until an administrator evaluates and releases a dataset.',
-                  style: TextStyle(color: Color(0xFF9BB2C9)),
+                  style: TextStyle(color: Color(0xFFC4B5FD)),
                 ),
                 const SizedBox(height: 18),
                 _sectionTitle('Your submitted examples'),
@@ -419,7 +419,7 @@ class _ReviewSubmissionCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Automated screen: ${submission.screeningRiskLevel ?? 'unknown'} · $categories',
-              style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+              style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
             ),
             const SizedBox(height: 8),
             SelectableText(submission.content),
@@ -437,7 +437,7 @@ class _ReviewSubmissionCard extends StatelessWidget {
               Text(
                 '${submission.reviews.length} prior review(s): '
                 '${submission.reviews.map((review) => review.decision.replaceAll('_', ' ')).join(', ')}',
-                style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+                style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
               ),
             ],
             if (canReview) ...[
@@ -469,7 +469,7 @@ class _ReviewSubmissionCard extends StatelessWidget {
               if (busy) const LinearProgressIndicator(),
               const Text(
                 'Both scam and legitimate labels require two distinct moderators.',
-                style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 11),
+                style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 11),
               ),
             ] else if (canResolveDispute) ...[
               const SizedBox(height: 10),
@@ -498,7 +498,7 @@ class _ReviewSubmissionCard extends StatelessWidget {
             ] else
               const Text(
                 'You submitted or already reviewed this example; you cannot review it again.',
-                style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+                style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
               ),
           ],
         ),
@@ -538,7 +538,7 @@ class _DatasetVersionCard extends StatelessWidget {
             ),
             Text(
               '${version.exampleCount} verified example(s) · ${version.evaluationStatus} · ${version.releaseStatus}',
-              style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+              style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
             ),
             if (metrics.isNotEmpty)
               Text(
@@ -703,7 +703,7 @@ class _TrustedEmptyState extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     child: Padding(
       padding: const EdgeInsets.all(14),
-      child: Text(text, style: const TextStyle(color: Color(0xFF9BB2C9))),
+      child: Text(text, style: const TextStyle(color: Color(0xFFC4B5FD))),
     ),
   );
 }

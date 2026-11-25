@@ -1415,7 +1415,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ScanClassification.safe => const Color(0xFF34F5AA),
       ScanClassification.suspicious => const Color(0xFFFFC46B),
       ScanClassification.scam => const Color(0xFFFF6969),
-      ScanClassification.unknown => const Color(0xFF9BB2C9),
+      ScanClassification.unknown => const Color(0xFFC4B5FD),
     };
     final threatIntelligenceResults = result.analysisModules
         .where(
@@ -1625,7 +1625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       'Last analysis: ${_formatDateTime(result.analyzedAt!)}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF9BB2C9),
+                        color: Color(0xFFC4B5FD),
                       ),
                     ),
                   if (result.engineVersion.isNotEmpty)
@@ -1633,7 +1633,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       'Analysis engine: ${result.engineVersion}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF9BB2C9),
+                        color: Color(0xFFC4B5FD),
                       ),
                     ),
                 ],
@@ -2121,51 +2121,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Theme(
       data: Theme.of(context).copyWith(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF34E89B),
+          seedColor: const Color(0xFF8B5CF6),
           brightness: Brightness.dark,
-          surface: const Color(0xFF09283D),
-          primary: const Color(0xFF34E89B),
-          onPrimary: const Color(0xFF03251E),
+          surface: const Color(0xFF211044),
+          primary: const Color(0xFF8B5CF6),
+          onPrimary: const Color(0xFFFFFFFF),
         ),
-        scaffoldBackgroundColor: const Color(0xFF041523),
+        scaffoldBackgroundColor: const Color(0xFF10051F),
         textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: const Color(0xFFEAF4FF),
-          displayColor: const Color(0xFFEAF4FF),
+          bodyColor: const Color(0xFFFFFFFF),
+          displayColor: const Color(0xFFFFFFFF),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF0B2A3D),
-          labelStyle: const TextStyle(color: Color(0xFFBDD0E1)),
-          hintStyle: const TextStyle(color: Color(0xFF8DA7BB)),
+          fillColor: const Color(0xFF291451),
+          labelStyle: const TextStyle(color: Color(0xFFC4B5FD)),
+          hintStyle: const TextStyle(color: Color(0xFFA78BFA)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(13),
-            borderSide: const BorderSide(color: Color(0xFF285268)),
+            borderSide: const BorderSide(color: Color(0xFF452477)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(13),
-            borderSide: const BorderSide(color: Color(0xFF285268)),
+            borderSide: const BorderSide(color: Color(0xFF452477)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(13),
-            borderSide: const BorderSide(color: Color(0xFF34E89B), width: 1.5),
+            borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 1.5),
           ),
         ),
-        dividerColor: const Color(0xFF16445A),
+        dividerColor: const Color(0xFF452477),
         switchTheme: SwitchThemeData(
           thumbColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? const Color(0xFF34E89B)
-                : const Color(0xFF9BB2C9),
+                ? const Color(0xFF8B5CF6)
+                : const Color(0xFFC4B5FD),
           ),
           trackColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? const Color(0xFF1E735D)
-                : const Color(0xFF294151),
+                ? const Color(0xFF6D28D9)
+                : const Color(0xFF291451),
           ),
         ),
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF041523),
+        backgroundColor: const Color(0xFF10051F),
         floatingActionButton: FloatingActionButton(
           key: const Key('ai-assistant'),
           heroTag: 'safety-assistant',
@@ -2192,7 +2192,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color(0xFF061C2D), Color(0xFF041523)],
+                      colors: [Color(0xFF1A0833), Color(0xFF10051F)],
                     ),
                   ),
                   child: PageView(
@@ -2217,13 +2217,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           selectedIndex: _selectedTab,
           onDestinationSelected: _selectTab,
           height: 72,
-          backgroundColor: const Color(0xFF061A2A),
-          indicatorColor: const Color(0xFF123D3D),
+          backgroundColor: const Color(0xFF211044),
+          indicatorColor: const Color(0xFF3B0764),
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             return TextStyle(
               color: states.contains(WidgetState.selected)
                   ? const Color(0xFF34F5AA)
-                  : const Color(0xFF9BB2C9),
+                  : const Color(0xFFC4B5FD),
               fontSize: 11,
               fontWeight: states.contains(WidgetState.selected)
                   ? FontWeight.w700
@@ -2232,14 +2232,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }),
           destinations: const [
             NavigationDestination(
-              icon: Icon(Icons.home_outlined, color: Color(0xFF9BB2C9)),
+              icon: Icon(Icons.home_outlined, color: Color(0xFFC4B5FD)),
               selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF34F5AA)),
               label: 'Home',
             ),
             NavigationDestination(
               icon: Icon(
                 Icons.people_outline_rounded,
-                color: Color(0xFF9BB2C9),
+                color: Color(0xFFC4B5FD),
               ),
               selectedIcon: Icon(
                 Icons.people_rounded,
@@ -2248,7 +2248,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Family',
             ),
             NavigationDestination(
-              icon: Icon(Icons.history_outlined, color: Color(0xFF9BB2C9)),
+              icon: Icon(Icons.history_outlined, color: Color(0xFFC4B5FD)),
               selectedIcon: Icon(
                 Icons.history_rounded,
                 color: Color(0xFF34F5AA),
@@ -2258,7 +2258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             NavigationDestination(
               icon: Icon(
                 Icons.person_outline_rounded,
-                color: Color(0xFF9BB2C9),
+                color: Color(0xFFC4B5FD),
               ),
               selectedIcon: Icon(
                 Icons.person_rounded,
@@ -2289,8 +2289,8 @@ class _DashboardTopBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: const BoxDecoration(
-        color: Color(0xFF061A2A),
-        border: Border(bottom: BorderSide(color: Color(0xFF12364B))),
+        color: Color(0xFF211044),
+        border: Border(bottom: BorderSide(color: Color(0xFF452477))),
       ),
       child: Row(
         children: [
@@ -2298,7 +2298,7 @@ class _DashboardTopBar extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: const Color(0xFF0D3B3D),
+              color: const Color(0xFF2E1065),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
@@ -2317,7 +2317,7 @@ class _DashboardTopBar extends StatelessWidget {
                     const Text(
                       'Cyv',
                       style: TextStyle(
-                        color: Color(0xFFEAF4FF),
+                        color: Color(0xFFFFFFFF),
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                         fontStyle: FontStyle.italic,
@@ -2339,7 +2339,7 @@ class _DashboardTopBar extends StatelessWidget {
                     title,
                     key: const Key('dashboard-title'),
                     style: const TextStyle(
-                      color: Color(0xFF9BB2C9),
+                      color: Color(0xFFC4B5FD),
                       fontSize: 11,
                     ),
                   ),
@@ -2365,7 +2365,7 @@ class _DashboardTopBar extends StatelessWidget {
             },
             child: const Icon(
               Icons.notifications_none_rounded,
-              color: Color(0xFFBDD0E1),
+              color: Color(0xFFC4B5FD),
             ),
           ),
         ],
@@ -2496,7 +2496,7 @@ class _AnalysisModuleTile extends StatelessWidget {
         ? const Color(0xFFFFC46B)
         : evidenceKind == 'no_match'
         ? const Color(0xFF34F5AA)
-        : const Color(0xFF9BB2C9);
+        : const Color(0xFFC4B5FD);
     final checkedAt = DateTime.parse(result['checked_at'] as String);
     final indicatorType = result['indicator_type'];
     final details = result['details'];
@@ -2517,7 +2517,7 @@ class _AnalysisModuleTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(top: 6),
-      color: const Color(0xFF0B2A3D),
+      color: const Color(0xFF291451),
       child: ExpansionTile(
         key: Key(
           'analysis-$module-${result['indicator_type']}-${result['indicator_hash'] ?? ''}',
@@ -2721,10 +2721,10 @@ class _HomeDashboard extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF0D3042), Color(0xFF082435)],
+              colors: [Color(0xFF2E1065), Color(0xFF1A0833)],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF16445A)),
+            border: Border.all(color: const Color(0xFF452477)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x22000000),
@@ -2762,7 +2762,7 @@ class _HomeDashboard extends StatelessWidget {
                     const Text(
                       'WELCOME BACK',
                       style: TextStyle(
-                        color: Color(0xFF65F8BB),
+                        color: Color(0xFFC4B5FD),
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.1,
@@ -2774,7 +2774,7 @@ class _HomeDashboard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFFEAF4FF),
+                        color: Color(0xFFFFFFFF),
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         height: 1.1,
@@ -2785,7 +2785,7 @@ class _HomeDashboard extends StatelessWidget {
                       'Your scam safety overview',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+                      style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
                     ),
                   ],
                 ),
@@ -2901,10 +2901,10 @@ class _HomeDashboard extends StatelessWidget {
             key: const Key('quick-scan'),
             onPressed: onScan,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF34E89B),
-              foregroundColor: const Color(0xFF03251E),
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: const Color(0xFFFFFFFF),
               elevation: 3,
-              shadowColor: const Color(0x6634E89B),
+              shadowColor: const Color(0x668B5CF6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -3118,7 +3118,7 @@ class _ScanHistoryPanelState extends State<_ScanHistoryPanel> {
           trailing: Text(
             '${entries.length} ${entries.length == 1 ? 'result' : 'results'}',
             style: const TextStyle(
-              color: Color(0xFF8DA7BB),
+              color: Color(0xFFA78BFA),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -3130,13 +3130,13 @@ class _ScanHistoryPanelState extends State<_ScanHistoryPanel> {
             Icon(
               Icons.lock_outline_rounded,
               size: 14,
-              color: Color(0xFF8DA7BB),
+              color: Color(0xFFA78BFA),
             ),
             SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Original message and URL text are not saved.',
-                style: TextStyle(color: Color(0xFF8DA7BB), fontSize: 11),
+                style: TextStyle(color: Color(0xFFA78BFA), fontSize: 11),
               ),
             ),
           ],
@@ -3145,9 +3145,9 @@ class _ScanHistoryPanelState extends State<_ScanHistoryPanel> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xFF082538),
+            color: const Color(0xFF291451),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF16445A)),
+            border: Border.all(color: const Color(0xFF452477)),
           ),
           child: Row(
             children: [
@@ -3250,7 +3250,7 @@ class _ScanHistoryPanelState extends State<_ScanHistoryPanel> {
             child: Text(
               'End of scan history',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+              style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
             ),
           ),
       ],
@@ -3271,17 +3271,17 @@ class _ScanHistoryCard extends StatelessWidget {
       ScanRiskLevel.medium => const Color(0xFFFFC46B),
       ScanRiskLevel.high => const Color(0xFFFF7777),
       ScanRiskLevel.critical => const Color(0xFFFF4444),
-      ScanRiskLevel.unknown => const Color(0xFF9BB2C9),
+      ScanRiskLevel.unknown => const Color(0xFFC4B5FD),
     };
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
       child: Material(
         key: Key('scan-history-${entry.id}'),
-        color: const Color(0xFF082538),
+        color: const Color(0xFF291451),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF16445A)),
+          side: const BorderSide(color: Color(0xFF452477)),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -3329,7 +3329,7 @@ class _ScanHistoryCard extends StatelessWidget {
                             child: Text(
                               '${_scanTypeLabel(entry.scanType)} scan',
                               style: const TextStyle(
-                                color: Color(0xFFEAF4FF),
+                                color: Color(0xFFFFFFFF),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -3337,7 +3337,7 @@ class _ScanHistoryCard extends StatelessWidget {
                           ),
                           const Icon(
                             Icons.arrow_forward_rounded,
-                            color: Color(0xFF8DA7BB),
+                            color: Color(0xFFA78BFA),
                             size: 17,
                           ),
                         ],
@@ -3371,7 +3371,7 @@ class _ScanHistoryCard extends StatelessWidget {
                             '${_riskLabelForResult(entry.riskLevel)} risk · '
                             '${entry.confidence}% confidence',
                             style: const TextStyle(
-                              color: Color(0xFF9BB2C9),
+                              color: Color(0xFFC4B5FD),
                               fontSize: 10,
                             ),
                           ),
@@ -3386,7 +3386,7 @@ class _ScanHistoryCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFFBDD0E1),
+                          color: Color(0xFFC4B5FD),
                           fontSize: 12,
                           height: 1.35,
                         ),
@@ -3396,14 +3396,14 @@ class _ScanHistoryCard extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.schedule_rounded,
-                            color: Color(0xFF8DA7BB),
+                            color: Color(0xFFA78BFA),
                             size: 13,
                           ),
                           const SizedBox(width: 5),
                           Text(
                             _formatDateTime(entry.createdAt),
                             style: const TextStyle(
-                              color: Color(0xFF8DA7BB),
+                              color: Color(0xFFA78BFA),
                               fontSize: 10,
                             ),
                           ),
@@ -3599,16 +3599,16 @@ class _FamilyGroupContent extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF0B6755), Color(0xFF07384A)],
+              colors: [Color(0xFF6D28D9), Color(0xFF2E1065)],
             ),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFF128A6B)),
+            border: Border.all(color: const Color(0xFF7C3AED)),
           ),
           child: Row(
             children: [
               const Icon(
                 Icons.home_work_rounded,
-                color: Color(0xFF8CFFD0),
+                color: Color(0xFFE9D5FF),
                 size: 35,
               ),
               const SizedBox(width: 12),
@@ -3621,7 +3621,7 @@ class _FamilyGroupContent extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFFEAF4FF),
+                        color: Color(0xFFFFFFFF),
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
                       ),
@@ -3654,14 +3654,14 @@ class _FamilyGroupContent extends StatelessWidget {
                   onPressed: onInvite,
                   icon: const Icon(
                     Icons.person_add_alt_1_rounded,
-                    color: Color(0xFF9FFFD5),
+                    color: Color(0xFFC4B5FD),
                   ),
                 ),
               IconButton(
                 key: const Key('family-permission-control'),
                 tooltip: 'Permission control',
                 onPressed: onPermissionCenter,
-                icon: const Icon(Icons.tune_rounded, color: Color(0xFFB7F9DD)),
+                icon: const Icon(Icons.tune_rounded, color: Color(0xFFE9D5FF)),
               ),
             ],
           ),
@@ -3700,7 +3700,7 @@ class _FamilyGroupContent extends StatelessWidget {
                   child: Text(
                     'Pending invitations',
                     style: TextStyle(
-                      color: Color(0xFFEAF4FF),
+                      color: Color(0xFFFFFFFF),
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -3747,7 +3747,7 @@ class _FamilyGroupContent extends StatelessWidget {
                   padding: EdgeInsets.only(bottom: 8),
                   child: Text(
                     'Invite a member to start sharing reports.',
-                    style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+                    style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
                   ),
                 ),
               if (family.isOwner)
@@ -3840,7 +3840,7 @@ class _FamilyGroupContent extends StatelessWidget {
                     const Text(
                       'Shared report',
                       style: TextStyle(
-                        color: Color(0xFF8FD5C2),
+                        color: Color(0xFFC4B5FD),
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -3849,7 +3849,7 @@ class _FamilyGroupContent extends StatelessWidget {
                     Text(
                       _formatDateTime(report.createdAt),
                       style: const TextStyle(
-                        color: Color(0xFF9FB5C2),
+                        color: Color(0xFFA78BFA),
                         fontSize: 11,
                       ),
                     ),
@@ -3920,7 +3920,7 @@ class _FamilyReportMetric extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 76),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF102B3D),
+        color: const Color(0xFF211044),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFF1E4B5A)),
       ),
@@ -3934,7 +3934,7 @@ class _FamilyReportMetric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -3944,7 +3944,7 @@ class _FamilyReportMetric extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF8DA7BB), fontSize: 10),
+            style: const TextStyle(color: Color(0xFFA78BFA), fontSize: 10),
           ),
         ],
       ),
@@ -4013,14 +4013,14 @@ class _FamilyActivitySection extends StatelessWidget {
                             alert.title,
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFEAF4FF),
+                              color: Color(0xFFFFFFFF),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             alert.detail,
                             style: const TextStyle(
-                              color: Color(0xFF9BB2C9),
+                              color: Color(0xFFC4B5FD),
                               fontSize: 12,
                               height: 1.35,
                             ),
@@ -4107,12 +4107,12 @@ class _FamilyStatusPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: const Color(0xFFB7F9DD)),
+          Icon(icon, size: 12, color: const Color(0xFFE9D5FF)),
           const SizedBox(width: 4),
           Text(
             label,
             style: const TextStyle(
-              color: Color(0xFFB7F9DD),
+              color: Color(0xFFE9D5FF),
               fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
@@ -4161,7 +4161,7 @@ class _FamilyMemberAvatar extends StatelessWidget {
                     height: 25,
                   ),
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF12384A),
+                    backgroundColor: const Color(0xFF291451),
                     foregroundColor: const Color(0xFFB7CFDF),
                   ),
                   icon: const Icon(Icons.close_rounded),
@@ -4178,7 +4178,7 @@ class _FamilyMemberAvatar extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -4186,7 +4186,7 @@ class _FamilyMemberAvatar extends StatelessWidget {
         ),
         Text(
           member.isOwner ? 'Owner' : 'Member',
-          style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 9),
+          style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 9),
         ),
       ],
     );
@@ -4362,11 +4362,11 @@ class _AlertCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF082538),
+          color: const Color(0xFF291451),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: alert.isRead
-                ? const Color(0xFF16445A)
+                ? const Color(0xFF452477)
                 : color.withValues(alpha: 0.42),
           ),
         ),
@@ -4399,7 +4399,7 @@ class _AlertCard extends StatelessWidget {
                         child: Text(
                           alert.title,
                           style: const TextStyle(
-                            color: Color(0xFFEAF4FF),
+                            color: Color(0xFFFFFFFF),
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -4431,7 +4431,7 @@ class _AlertCard extends StatelessWidget {
                   Text(
                     alert.detail,
                     style: const TextStyle(
-                      color: Color(0xFFBDD0E1),
+                      color: Color(0xFFC4B5FD),
                       fontSize: 12,
                       height: 1.35,
                     ),
@@ -4440,7 +4440,7 @@ class _AlertCard extends StatelessWidget {
                   Text(
                     _formatDate(alert.createdAt),
                     style: const TextStyle(
-                      color: Color(0xFF8DA7BB),
+                      color: Color(0xFFA78BFA),
                       fontSize: 10,
                     ),
                   ),
@@ -4546,7 +4546,7 @@ class _ProfilePage extends StatelessWidget {
         const SizedBox(height: 4),
         const Text(
           'Control what Cyvora shares and how family activity is handled.',
-          style: TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+          style: TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
         ),
         const SizedBox(height: 12),
         if (privacySettingsLoading)
@@ -4571,7 +4571,7 @@ class _ProfilePage extends StatelessWidget {
                   child: Text(
                     'SHARING CONTROLS',
                     style: TextStyle(
-                      color: Color(0xFF7FA5B7),
+                      color: Color(0xFFA78BFA),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.1,
@@ -4629,7 +4629,7 @@ class _ProfilePage extends StatelessWidget {
                   child: Text(
                     'NOTIFICATIONS',
                     style: TextStyle(
-                      color: Color(0xFF7FA5B7),
+                      color: Color(0xFFA78BFA),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.1,
@@ -4827,15 +4827,15 @@ class _ProfileAccountCard extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [
                   Color(0xFF0C3C42),
-                  Color(0xFF09283D),
-                  Color(0xFF082538),
+                  Color(0xFF211044),
+                  Color(0xFF291451),
                 ],
               ),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFF1A655F)),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x1820D994),
+                  color: Color(0x187C3AED),
                   blurRadius: 18,
                   offset: Offset(0, 8),
                 ),
@@ -4868,13 +4868,13 @@ class _ProfileAccountCard extends StatelessWidget {
                               color: const Color(0xFF0C3C42),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: const Color(0xFF64F2CC),
+                                color: const Color(0xFFC4B5FD),
                                 width: 1.5,
                               ),
                             ),
                             child: const Icon(
                               Icons.check_rounded,
-                              color: Color(0xFF64F2CC),
+                              color: Color(0xFFC4B5FD),
                               size: 14,
                             ),
                           ),
@@ -4901,7 +4901,7 @@ class _ProfileAccountCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFFEAF4FF),
+                              color: Color(0xFFFFFFFF),
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               height: 1.3,
@@ -4934,7 +4934,7 @@ class _ProfileAccountCard extends StatelessWidget {
                             child: const Text(
                               'PROTECTED ACCOUNT',
                               style: TextStyle(
-                                color: Color(0xFF9FFFD5),
+                                color: Color(0xFFC4B5FD),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.6,
@@ -4955,7 +4955,7 @@ class _ProfileAccountCard extends StatelessWidget {
                     icon: const Icon(Icons.edit_outlined, size: 17),
                     label: const Text('Edit account details'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF9FFFD5),
+                      foregroundColor: const Color(0xFFC4B5FD),
                       side: const BorderSide(color: Color(0xFF267A72)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -4968,7 +4968,7 @@ class _ProfileAccountCard extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.shield_outlined,
-                      color: Color(0xFF64F2CC),
+                      color: Color(0xFFC4B5FD),
                       size: 17,
                     ),
                     SizedBox(width: 8),
@@ -5065,12 +5065,12 @@ class _ProfileAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: hasPhoto
-            ? const Color(0xFF09283D)
-            : const Color(0xFF34E89B).withValues(alpha: 0.13),
+            ? const Color(0xFF211044)
+            : const Color(0xFF8B5CF6).withValues(alpha: 0.13),
         border: hasPhoto
             ? null
             : Border.all(
-                color: const Color(0xFF34E89B).withValues(alpha: 0.45),
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.45),
               ),
       ),
       child: image,
@@ -5304,7 +5304,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                   child: Text(
                     'Changing your email may require confirming the new address. Your current email stays active until confirmation.',
                     style: TextStyle(
-                      color: Color(0xFF9BB2C9),
+                      color: Color(0xFFC4B5FD),
                       fontSize: 12,
                       height: 1.4,
                     ),
@@ -5588,7 +5588,7 @@ class _PageIntro extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            color: Color(0xFFEAF4FF),
+            color: Color(0xFFFFFFFF),
             fontSize: 24,
             fontWeight: FontWeight.w800,
           ),
@@ -5596,7 +5596,7 @@ class _PageIntro extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 13),
+          style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 13),
         ),
       ],
     );
@@ -5614,13 +5614,13 @@ class _ProtectionStatusCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF0B3D42), Color(0xFF08283A), Color(0xFF09283D)],
+          colors: [Color(0xFF3B0764), Color(0xFF08283A), Color(0xFF211044)],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF176B63), width: 1),
+        border: Border.all(color: const Color(0xFF7C3AED), width: 1),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1F20D994),
+            color: Color(0x1F7C3AED),
             blurRadius: 16,
             offset: Offset(0, 4),
           ),
@@ -5632,16 +5632,16 @@ class _ProtectionStatusCard extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: const Color(0xFF0B6A57),
+              color: const Color(0xFF6D28D9),
               borderRadius: BorderRadius.circular(17),
-              border: Border.all(color: const Color(0xFF36F5AA), width: 1),
+              border: Border.all(color: const Color(0xFFA78BFA), width: 1),
               boxShadow: const [
                 BoxShadow(color: Color(0x2234F5AA), blurRadius: 12),
               ],
             ),
             child: const Icon(
               Icons.shield_rounded,
-              color: Color(0xFFB7FFE0),
+              color: Color(0xFFE9D5FF),
               size: 32,
             ),
           ),
@@ -5653,7 +5653,7 @@ class _ProtectionStatusCard extends StatelessWidget {
                 Text(
                   'Your safety center',
                   style: TextStyle(
-                    color: Color(0xFFEAF4FF),
+                    color: Color(0xFFFFFFFF),
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
@@ -5663,7 +5663,7 @@ class _ProtectionStatusCard extends StatelessWidget {
                   'On-demand checks are ready when you are. '
                   'Background device protection is not active.',
                   style: TextStyle(
-                    color: Color(0xFFC5D9E7),
+                    color: Color(0xFFC4B5FD),
                     fontSize: 11,
                     height: 1.3,
                   ),
@@ -5719,7 +5719,7 @@ class _StatisticCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFFD3E1EC),
+                    color: Color(0xFFC4B5FD),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     height: 1.15,
@@ -5732,7 +5732,7 @@ class _StatisticCard extends StatelessWidget {
           _AnimatedStatisticValue(
             value: value,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontSize: 25,
               fontWeight: FontWeight.w800,
               height: 1,
@@ -5764,7 +5764,7 @@ class _CompactStatisticCard extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 116),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF09283D),
+        color: const Color(0xFF211044),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: color.withValues(alpha: 0.28)),
         boxShadow: [
@@ -5796,7 +5796,7 @@ class _CompactStatisticCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xFFD3E1EC),
+              color: Color(0xFFC4B5FD),
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
               height: 1.1,
@@ -5807,7 +5807,7 @@ class _CompactStatisticCard extends StatelessWidget {
             value: value,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontSize: 25,
               fontWeight: FontWeight.w800,
               height: 1,
@@ -5833,7 +5833,7 @@ class _SectionHeading extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -5864,7 +5864,7 @@ class _OnDemandBadge extends StatelessWidget {
           Text(
             'ON-DEMAND',
             style: TextStyle(
-              color: Color(0xFF65F8BB),
+              color: Color(0xFFC4B5FD),
               fontSize: 9,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
@@ -5891,7 +5891,7 @@ class _QuickToolTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF09283D),
+      color: const Color(0xFF211044),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -5901,11 +5901,11 @@ class _QuickToolTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFF1A4D60)),
+            border: Border.all(color: const Color(0xFF452477)),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF0B2D40), Color(0xFF082538)],
+              colors: [Color(0xFF291451), Color(0xFF291451)],
             ),
           ),
           child: Column(
@@ -5915,10 +5915,10 @@ class _QuickToolTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF34E89B).withValues(alpha: 0.1),
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(13),
                   border: Border.all(
-                    color: const Color(0xFF34E89B).withValues(alpha: 0.18),
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.18),
                   ),
                 ),
                 child: Icon(icon, color: const Color(0xFF39EBA5), size: 21),
@@ -5963,32 +5963,32 @@ class _ToolCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
-      color: const Color(0xFF09283D),
+      color: const Color(0xFF211044),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF16445A)),
+        side: const BorderSide(color: Color(0xFF452477)),
       ),
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF0D3B3D),
+          backgroundColor: const Color(0xFF2E1065),
           child: Icon(icon, color: const Color(0xFF39EBA5), size: 20),
         ),
         title: Text(
           title,
           style: const TextStyle(
-            color: Color(0xFFEAF4FF),
+            color: Color(0xFFFFFFFF),
             fontWeight: FontWeight.w700,
           ),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(color: Color(0xFF9BB2C9), fontSize: 12),
+          style: const TextStyle(color: Color(0xFFC4B5FD), fontSize: 12),
         ),
         trailing: const Icon(
           Icons.chevron_right_rounded,
-          color: Color(0xFF9BB2C9),
+          color: Color(0xFFC4B5FD),
         ),
       ),
     );
@@ -6008,9 +6008,9 @@ class _SectionCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: _dashboardCardDecoration,
       child: Material(
-        color: const Color(0xFF09283D),
+        color: const Color(0xFF211044),
         child: DefaultTextStyle(
-          style: const TextStyle(color: Color(0xFFEAF4FF)),
+          style: const TextStyle(color: Color(0xFFFFFFFF)),
           child: child,
         ),
       ),
@@ -6037,13 +6037,13 @@ class _EmptyStateCard extends StatelessWidget {
       decoration: _dashboardCardDecoration,
       child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF9BB2C9), size: 28),
+          Icon(icon, color: const Color(0xFFC4B5FD), size: 28),
           const SizedBox(height: 10),
           Text(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFEAF4FF),
+              color: Color(0xFFFFFFFF),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -6052,7 +6052,7 @@ class _EmptyStateCard extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFF9BB2C9),
+              color: Color(0xFFC4B5FD),
               fontSize: 12,
               height: 1.4,
             ),
@@ -6074,20 +6074,20 @@ class _InfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B2A3D),
+        color: const Color(0xFF291451),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF16445A)),
+        border: Border.all(color: const Color(0xFF452477)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFFBDD0E1), size: 19),
+          Icon(icon, color: const Color(0xFFC4B5FD), size: 19),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
               style: const TextStyle(
-                color: Color(0xFFBDD0E1),
+                color: Color(0xFFC4B5FD),
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -6135,7 +6135,7 @@ String _formatDateTime(DateTime value) {
 }
 
 const _dashboardCardDecoration = BoxDecoration(
-  color: Color(0xFF09283D),
+  color: Color(0xFF211044),
   borderRadius: BorderRadius.all(Radius.circular(16)),
-  border: Border.fromBorderSide(BorderSide(color: Color(0xFF16445A))),
+  border: Border.fromBorderSide(BorderSide(color: Color(0xFF452477))),
 );
