@@ -34,8 +34,15 @@ class MessageNotificationService {
   static const _channel = MethodChannel('cyvora/notification_scanning');
 
   Future<bool> isEnabled() async {
-    return await _channel.invokeMethod<bool>('isNotificationListenerEnabled') ??
-        false;
+    final enabled = await _channel.invokeMethod<bool>(
+      'isNotificationListenerEnabled',
+    );
+    if (enabled == null) {
+      throw StateError(
+        'Notification access status was not returned by Android.',
+      );
+    }
+    return enabled;
   }
 
   Future<void> openSettings() {
@@ -71,6 +78,32 @@ class MessageNotificationService {
 
   Future<void> clearPending() {
     return _channel.invokeMethod<void>('clearPendingMessageNotifications');
+  }
+
+  Future<Set<String>> selectedApps() async {
+    final values = await _channel.invokeMethod<List<Object?>>(
+      'getSelectedNotificationApps',
+    );
+    if (values == null) {
+      throw StateError(
+        'Selected notification apps were not returned by Android.',
+      );
+    }
+    final packages = <String>{};
+    for (final value in values) {
+      if (value is! String) {
+        throw StateError('Android returned an invalid selected-app entry.');
+      }
+      packages.add(value);
+    }
+    return packages;
+  }
+
+  Future<void> setSelectedApps(Set<String> packageNames) {
+    return _channel.invokeMethod<void>(
+      'setSelectedNotificationApps',
+      <String, Object?>{'packages': packageNames.toList()..sort()},
+    );
   }
 
   Future<int> retentionDays() async {

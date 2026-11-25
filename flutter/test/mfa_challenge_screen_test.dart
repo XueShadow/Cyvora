@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:cyvora_mobile/mfa_challenge_screen.dart';
+import 'package:cyvora_mobile/features/authentication/views/mfa_challenge_screen.dart';
 
 void main() {
   testWidgets('a privileged account without a verified factor stays blocked', (

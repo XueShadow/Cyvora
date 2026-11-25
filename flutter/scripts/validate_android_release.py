@@ -19,8 +19,39 @@ MINIMUM_TARGET_API = 35
 REQUIRED_ABIS = {"arm64-v8a", "armeabi-v7a", "x86_64"}
 REQUIRED_PERMISSIONS = {
     "android.permission.INTERNET",
+}
+FORBIDDEN_PERMISSIONS = {
+    "android.permission.ACCESS_BACKGROUND_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
+    "android.permission.ACCESS_FINE_LOCATION",
     "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.BIND_ACCESSIBILITY_SERVICE",
+    "android.permission.CAMERA",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.GET_ACCOUNTS",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
     "android.permission.POST_NOTIFICATIONS",
+    "android.permission.PROCESS_OUTGOING_CALLS",
+    "android.permission.QUERY_ALL_PACKAGES",
+    "android.permission.READ_CALL_LOG",
+    "android.permission.READ_CONTACTS",
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.READ_MEDIA_AUDIO",
+    "android.permission.READ_MEDIA_IMAGES",
+    "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+    "android.permission.READ_PHONE_STATE",
+    "android.permission.READ_SMS",
+    "android.permission.RECEIVE_BOOT_COMPLETED",
+    "android.permission.RECEIVE_MMS",
+    "android.permission.RECEIVE_SMS",
+    "android.permission.RECEIVE_WAP_PUSH",
+    "android.permission.SEND_SMS",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.WRITE_CALL_LOG",
+    "android.permission.WRITE_CONTACTS",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
+    "android.permission.WRITE_SMS",
 }
 PRODUCTION_CERT_SHA256 = (
     "d732eaa269a8707b2447c73aee5a14885d030d59b9dc7382302321c750ad3afa"
@@ -137,6 +168,26 @@ def read_apk_metadata(aapt: Path, apk: Path) -> tuple[dict[str, str], set[str], 
     return fields, abis, badging
 
 
+def validate_permission_inventory(badging: str) -> set[str]:
+    requested = set(
+        re.findall(
+            r"^uses-permission(?:-sdk-\d+)?: name='([^']+)'",
+            badging,
+            re.MULTILINE,
+        )
+    )
+    missing = REQUIRED_PERMISSIONS - requested
+    if missing:
+        fail(f"APK is missing required permissions: {', '.join(sorted(missing))}.")
+    forbidden = FORBIDDEN_PERMISSIONS & requested
+    if forbidden:
+        fail(
+            "APK requests permissions not justified by current features: "
+            f"{', '.join(sorted(forbidden))}."
+        )
+    return requested
+
+
 def verify_apk_signature(
     java: Path,
     apksigner_jar: Path,
@@ -251,16 +302,7 @@ def validate(args: argparse.Namespace) -> None:
             f"{', '.join(sorted(REQUIRED_ABIS - packaged_abis))}."
         )
 
-    missing_permissions = {
-        permission
-        for permission in REQUIRED_PERMISSIONS
-        if f"uses-permission: name='{permission}'" not in badging
-    }
-    if missing_permissions:
-        fail(
-            "APK is missing required permissions: "
-            f"{', '.join(sorted(missing_permissions))}."
-        )
+    validate_permission_inventory(badging)
     manifest_tree = run_tool([str(aapt), "dump", "xmltree", str(args.apk), "AndroidManifest.xml"])
     required_manifest_values = (
         f"{APPLICATION_ID}.MessageNotificationListenerService",

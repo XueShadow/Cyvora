@@ -36,21 +36,86 @@ internal class NotificationQueueStorage(context: Context) {
         preferences.getBoolean(MONITORING_CONSENT_KEY, false)
 
     fun setMonitoringConsentGranted(granted: Boolean) {
-        val editor = preferences.edit().putBoolean(MONITORING_CONSENT_KEY, granted)
-        if (granted) {
-            editor.apply()
-            return
+        synchronized(MONITORING_LOCK) {
+            if (granted) {
+                require(selectedNotificationApps().isNotEmpty()) {
+                    "Select at least one supported app before enabling monitoring."
+                }
+                val saved = preferences.edit()
+                    .putBoolean(MONITORING_CONSENT_KEY, true)
+                    .commit()
+                if (!saved) {
+                    throw NotificationStorageException(
+                        "Monitoring consent could not be saved.",
+                    )
+                }
+                return
+            }
+
+            val saved = preferences.edit()
+                .putBoolean(MONITORING_CONSENT_KEY, false)
+                .remove(ENCRYPTED_PENDING_KEY)
+                .remove(LEGACY_PENDING_KEY)
+                .commit()
+            if (!saved) {
+                throw NotificationStorageException(
+                    "Monitoring consent and queued previews could not be saved.",
+                )
+            }
+            cancelExpiryAlarm()
         }
-        val saved = editor
-            .remove(ENCRYPTED_PENDING_KEY)
-            .remove(LEGACY_PENDING_KEY)
-            .commit()
-        if (!saved) {
-            throw NotificationStorageException(
-                "Monitoring consent and queued previews could not be saved.",
-            )
+    }
+
+    fun selectedNotificationApps(): Set<String> = synchronized(MONITORING_LOCK) {
+        preferences.getStringSet(SELECTED_NOTIFICATION_APPS_KEY, emptySet())
+            .orEmpty()
+            .filter { it in SUPPORTED_NOTIFICATION_PACKAGES }
+            .toSet()
+    }
+
+    fun isNotificationPackageSelected(packageName: String): Boolean =
+        packageName in selectedNotificationApps()
+
+    fun withMonitoringEnabled(packageName: String, process: () -> Unit) {
+        synchronized(MONITORING_LOCK) {
+            if (!isMonitoringConsentGranted() ||
+                !isNotificationPackageSelected(packageName)
+            ) {
+                return
+            }
+            process()
         }
-        cancelExpiryAlarm()
+    }
+
+    fun setSelectedNotificationApps(packageNames: Set<String>) {
+        val unsupported = packageNames - SUPPORTED_NOTIFICATION_PACKAGES
+        require(unsupported.isEmpty()) {
+            "One or more selected apps are not supported."
+        }
+        synchronized(MONITORING_LOCK) {
+            val saved = preferences.edit()
+                .putStringSet(SELECTED_NOTIFICATION_APPS_KEY, packageNames.toSet())
+                .commit()
+            if (!saved) {
+                throw NotificationStorageException(
+                    "Selected notification apps could not be saved.",
+                )
+            }
+            val now = System.currentTimeMillis()
+            val retained = JSONArray()
+            val queue = pruneExpired(readQueue(), now)
+            for (index in 0 until queue.length()) {
+                val item = queue.optJSONObject(index) ?: continue
+                if (item.optString("packageName") in packageNames) {
+                    retained.put(item)
+                }
+            }
+            writeQueue(retained)
+            scheduleNextExpiry(retained, now)
+            if (packageNames.isEmpty() && isMonitoringConsentGranted()) {
+                setMonitoringConsentGranted(false)
+            }
+        }
     }
 
     fun retentionDays(): Int {
@@ -72,33 +137,39 @@ internal class NotificationQueueStorage(context: Context) {
         packageName: String,
         receivedAt: Long,
     ) {
-        if (!isMonitoringConsentGranted()) return
-
-        val now = System.currentTimeMillis()
-        if (receivedAt <= now - retentionDays() * MILLIS_PER_DAY) return
-        val existing = pruneExpired(readQueue(), now)
-        val updated = JSONArray()
-        for (index in 0 until existing.length()) {
-            val item = existing.optJSONObject(index) ?: continue
-            val existingGroupId = item.optString("notificationGroupId")
-            if (existingGroupId != notificationGroupId &&
-                item.optString("id") != notificationGroupId
+        synchronized(MONITORING_LOCK) {
+            if (!isMonitoringConsentGranted() ||
+                !isNotificationPackageSelected(packageName)
             ) {
-                updated.put(item)
+                return
             }
+
+            val now = System.currentTimeMillis()
+            if (receivedAt <= now - retentionDays() * MILLIS_PER_DAY) return
+            val existing = pruneExpired(readQueue(), now)
+            val updated = JSONArray()
+            for (index in 0 until existing.length()) {
+                val item = existing.optJSONObject(index) ?: continue
+                val existingGroupId = item.optString("notificationGroupId")
+                if (existingGroupId != notificationGroupId &&
+                    item.optString("id") != notificationGroupId
+                ) {
+                    updated.put(item)
+                }
+            }
+            updated.put(
+                JSONObject()
+                    .put("id", id)
+                    .put("notificationGroupId", notificationGroupId)
+                    .put("title", title)
+                    .put("text", text)
+                    .put("packageName", packageName)
+                    .put("receivedAt", receivedAt),
+            )
+            while (updated.length() > MAX_QUEUE_SIZE) updated.remove(0)
+            writeQueue(updated)
+            scheduleNextExpiry(updated, now)
         }
-        updated.put(
-            JSONObject()
-                .put("id", id)
-                .put("notificationGroupId", notificationGroupId)
-                .put("title", title)
-                .put("text", text)
-                .put("packageName", packageName)
-                .put("receivedAt", receivedAt),
-        )
-        while (updated.length() > MAX_QUEUE_SIZE) updated.remove(0)
-        writeQueue(updated)
-        scheduleNextExpiry(updated, now)
     }
 
     fun pendingNotifications(): List<Map<String, Any>> {
@@ -349,6 +420,8 @@ internal class NotificationQueueStorage(context: Context) {
         private const val LEGACY_PENDING_KEY = "pending_messages"
         private const val ENCRYPTED_PENDING_KEY = "encrypted_pending_messages_v1"
         private const val MONITORING_CONSENT_KEY = "message_monitoring_consent"
+        private const val SELECTED_NOTIFICATION_APPS_KEY =
+            "selected_notification_apps"
         private const val RETENTION_DAYS_KEY = "notification_retention_days"
         private const val DEFAULT_RETENTION_DAYS = 7
         private val RETENTION_OPTIONS = setOf(1, 7, 30)
@@ -362,5 +435,14 @@ internal class NotificationQueueStorage(context: Context) {
         private const val GCM_TAG_SIZE_BITS = 128
         private const val ENCRYPTED_PREFIX = "v1:"
         private const val EXPIRY_REQUEST_CODE = 1037
+        private val MONITORING_LOCK = Any()
+        private val SUPPORTED_NOTIFICATION_PACKAGES = setOf(
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+            "com.whatsapp",
+            "org.telegram.messenger",
+            "com.facebook.orca",
+            "org.thoughtcrime.securesms",
+        )
     }
 }

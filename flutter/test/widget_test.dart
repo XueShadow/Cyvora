@@ -5,16 +5,17 @@ import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:cyvora_mobile/auth_gate.dart';
-import 'package:cyvora_mobile/auth_screen.dart';
-import 'package:cyvora_mobile/main.dart';
-import 'package:cyvora_mobile/mfa_challenge_screen.dart';
-import 'package:cyvora_mobile/splash_screen.dart';
-import 'package:cyvora_mobile/dashboard/dashboard_repository.dart';
-import 'package:cyvora_mobile/dashboard/heuristic_scanner.dart';
-import 'package:cyvora_mobile/dashboard/trusted_intelligence_page.dart';
+import 'package:cyvora_mobile/app/app.dart';
+import 'package:cyvora_mobile/features/authentication/views/auth_gate.dart';
+import 'package:cyvora_mobile/features/authentication/views/auth_screen.dart';
+import 'package:cyvora_mobile/features/authentication/views/mfa_challenge_screen.dart';
+import 'package:cyvora_mobile/features/dashboard/models/dashboard_models.dart';
+import 'package:cyvora_mobile/features/dashboard/models/dashboard_repository.dart';
+import 'package:cyvora_mobile/features/dashboard/views/dashboard_screen.dart';
+import 'package:cyvora_mobile/features/dashboard/views/trusted_intelligence_page.dart';
+import 'package:cyvora_mobile/features/scanner/models/scan_result.dart';
+import 'package:cyvora_mobile/features/splash/views/splash_screen.dart';
 
 void main() {
   test('dashboard summary counts review-level scans as warning signs', () {
@@ -1050,11 +1051,9 @@ void main() {
     'shows server analysis errors without mislabeling them as save failures',
     (WidgetTester tester) async {
       final repository = _FakeDashboardRepository()
-        ..scanError = const FunctionsHttpException(
+        ..scanError = const ScanAnalysisException(
           status: 503,
-          details: {
-            'error': 'AI-provider analysis is temporarily unavailable.',
-          },
+          message: 'AI-provider analysis is temporarily unavailable.',
         );
       await tester.pumpWidget(
         MaterialApp(
@@ -2852,4 +2851,7 @@ class _FakeDashboardRepository implements DashboardRepository {
 
   @override
   Future<void> deleteScanHistory() async => scanHistory.clear();
+
+  @override
+  Future<void> deleteAccount() async {}
 }

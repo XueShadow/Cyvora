@@ -1,7 +1,7 @@
 project_id = "wohfevsfhzgxejcfcrek"
 
 [functions.family-invitations]
-verify_jwt = false
+verify_jwt = true
 
 [functions.scam-intelligence]
-verify_jwt = false
+verify_jwt = true

@@ -27,11 +27,11 @@ const queue = readFileSync(
   "utf8",
 );
 const repository = readFileSync(
-  new URL("../../flutter/lib/dashboard/dashboard_repository.dart", import.meta.url),
+  new URL("../../flutter/lib/data/repositories/dashboard_repository.dart", import.meta.url),
   "utf8",
 );
 const dashboard = readFileSync(
-  new URL("../../flutter/lib/dashboard/dashboard_screen.dart", import.meta.url),
+  new URL("../../flutter/lib/features/dashboard/views/dashboard_screen.dart", import.meta.url),
   "utf8",
 );
 

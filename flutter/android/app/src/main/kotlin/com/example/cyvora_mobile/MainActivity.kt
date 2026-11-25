@@ -1,6 +1,5 @@
 package com.example.cyvora_mobile
 
-import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -18,7 +17,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isNotificationListenerEnabled" -> {
-                        val enabled = NotificationManagerCompat.isEnabled(this)
+                        val enabled = NotificationListenerAccess.isEnabled(this)
                         result.success(enabled)
                     }
                     "openNotificationListenerSettings" -> {
@@ -58,6 +57,23 @@ class MainActivity : FlutterActivity() {
                             val granted = call.argument<Boolean>("granted")
                                 ?: throw IllegalArgumentException("A consent value is required.")
                             notificationQueueStorage.setMonitoringConsentGranted(granted)
+                            null
+                        }
+                    }
+                    "getSelectedNotificationApps" -> {
+                        runNotificationStorageOperation(result) {
+                            notificationQueueStorage.selectedNotificationApps().toList()
+                        }
+                    }
+                    "setSelectedNotificationApps" -> {
+                        runNotificationStorageOperation(result) {
+                            val packages = call.argument<List<String>>("packages")
+                                ?: throw IllegalArgumentException(
+                                    "A selected-app list is required.",
+                                )
+                            notificationQueueStorage.setSelectedNotificationApps(
+                                packages.toSet(),
+                            )
                             null
                         }
                     }
@@ -102,17 +118,5 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "cyvora/notification_scanning"
-    }
-}
-
-private object NotificationManagerCompat {
-    fun isEnabled(activity: MainActivity): Boolean {
-        val enabledPackages = Settings.Secure.getString(
-            activity.contentResolver,
-            "enabled_notification_listeners",
-        ) ?: return false
-        return enabledPackages.split(":").any {
-            ComponentName.unflattenFromString(it)?.packageName == activity.packageName
-        }
     }
 }

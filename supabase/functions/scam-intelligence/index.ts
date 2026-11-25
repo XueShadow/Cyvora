@@ -108,6 +108,12 @@ function getPositiveIntegerSetting(
 }
 
 function getDailyRequestLimit(name: string): number | null {
+  const configuredDefault = name === "AI_GLOBAL_DAILY_REQUEST_LIMIT" ||
+      name === "AI_USER_DAILY_REQUEST_LIMIT"
+    ? 50
+    : 50;
+  const value = Deno.env.get(name)?.trim();
+  if (!value) return configuredDefault;
   return getPositiveIntegerSetting(name, 100000);
 }
 
@@ -1404,6 +1410,41 @@ async function handleRequest(
     return jsonResponse(400, { error: "Request body must be valid JSON." });
   }
 
+  if (body.action === "delete_account") {
+    const confirmation = typeof body.confirmation === "string"
+      ? body.confirmation.trim()
+      : "";
+    if (confirmation !== "DELETE MY ACCOUNT") {
+      return jsonResponse(400, {
+        error: 'Type "DELETE MY ACCOUNT" to confirm account deletion.',
+      });
+    }
+    const { data: avatarFiles, error: avatarListError } = await admin.storage
+      .from("profile-avatars")
+      .list(user.id);
+    if (!avatarListError && avatarFiles) {
+      const avatarPaths = avatarFiles
+        .map((file) => `${user.id}/${file.name}`)
+        .filter((path) => path.length > 0);
+      if (avatarPaths.length > 0) {
+        await admin.storage
+          .from("profile-avatars")
+          .remove(avatarPaths);
+      }
+    }
+    const { error: deletionError } = await admin.auth.admin.deleteUser(user.id);
+    if (deletionError) {
+      console.error("Scam intelligence: account deletion failed.");
+      return jsonResponse(500, {
+        error: "The account could not be deleted right now.",
+      });
+    }
+    return jsonResponse(200, {
+      status: "deleted",
+      message: "Your Cyvora account and associated data were deleted.",
+    });
+  }
+
   if (body.action === "submit_example") {
     return await submitTrustedExample(admin, user.id, body);
   }
@@ -1545,6 +1586,28 @@ async function handleRequest(
     return jsonResponse(400, {
       error: "use_url_reputation must be a boolean.",
     });
+  }
+  if (useAi) {
+    const { data: rateAllowed, error: rateError } = await admin.rpc(
+      "consume_edge_request_window",
+      {
+        target_user_id: user.id,
+        target_window_seconds: 600,
+        target_request_limit: 10,
+      },
+    );
+    if (rateError) {
+      console.error("Scam intelligence: AI request window check failed.");
+      return jsonResponse(503, {
+        error: "The analysis service could not verify request limits.",
+      });
+    }
+    if (rateAllowed !== true) {
+      return jsonResponse(429, {
+        error: "Too many cloud-analysis requests. Try again after the current 10-minute window.",
+        retry_after_seconds: 600,
+      });
+    }
   }
   if (type !== "message" && type !== "url" && type !== "screenshot") {
     return jsonResponse(400, {

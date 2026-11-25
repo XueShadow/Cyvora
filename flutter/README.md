@@ -44,7 +44,7 @@ metadata. The app rejects missing names and malformed email addresses before
 submitting signup. Signup also requires acceptance of the in-app Terms of
 Service and acknowledgment of the in-app Privacy Policy; the acceptance
 timestamp and version labels are saved in Auth user metadata. The Terms of
-Service version is `v2`; the Privacy Policy version is `v12`. The policies
+Service version is `v2`; the Privacy Policy version is `v14`. The policies
 identify Ji Monsales and
 jimonsales71@gmail.com, and specify the Philippines as the governing
 jurisdiction, subject to mandatory legal protections. They are informational
