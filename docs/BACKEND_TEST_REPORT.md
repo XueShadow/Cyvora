@@ -8,7 +8,6 @@
 - Android release policy tests: **PASS**, 20 tests.
 - Notification idempotency Node tests: **PASS**, 5 tests.
 - Backend hardening Node tests: added and source coverage ready.
-- Broad Supabase Node suite: 78/79 tests passed; one stale test path now fixed
 - Broad Supabase Node suite: **PASS**, 106 tests.
 - Android release APK: **PASS**.
 - Web build: **PASS**.
