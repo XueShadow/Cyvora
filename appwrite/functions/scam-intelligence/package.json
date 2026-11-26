@@ -1,0 +1,8 @@
+{
+  "name": "cyvora-scam-intelligence",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "node-appwrite": "^20.0.0"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "database": {
+    "idEnvironmentVariable": "APPWRITE_DATABASE_ID",
+    "logicalName": "cyvora",
+    "rowSecurity": true
+  },
+  "tables": [
+    {"id":"profiles","sourceTable":"profiles","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"row owner","create":"owner only","update":"owner only","delete":"owner only"}},
+    {"id":"families","sourceTable":"families","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"family members","create":"authenticated owner","update":"owner","delete":"owner"}},
+    {"id":"family_memberships","sourceTable":"family_members","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"family members","create":"function only","update":"function only","delete":"function only"}},
+    {"id":"family_invitations","sourceTable":"family_invites","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"owner and invited account","create":"function only","update":"function only","delete":"function only"}},
+    {"id":"scan_records","sourceTable":"scan_records","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"owner","create":"owner","update":"owner","delete":"owner"}},
+    {"id":"analysis_results","sourceTable":"threat_scan_results","sourceMigration":"supabase/migrations/202611120005_threat_intelligence.sql","permissions":{"read":"owner","create":"function only","update":"function only","delete":"owner"}},
+    {"id":"provider_evidence","sourceTable":"threat_provider_results","sourceMigration":"supabase/migrations/202611120005_threat_intelligence.sql","permissions":{"read":"owner","create":"function only","update":"function only","delete":"owner"}},
+    {"id":"analysis_module_results","sourceTable":"analysis_module_results","sourceMigration":"supabase/migrations/202611130003_independent_analysis.sql","permissions":{"read":"owner","create":"function only","update":"function only","delete":"owner"}},
+    {"id":"scam_reports","sourceTable":"scam_reports","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"author and eligible family","create":"owner","update":"owner","delete":"owner"}},
+    {"id":"alerts","sourceTable":"alerts","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"target user or family","create":"function only","update":"function only","delete":"target owner"}},
+    {"id":"alert_read_states","sourceTable":"alert_reads","sourceMigration":"supabase/migrations/202606120001_dashboard_mvp.sql","permissions":{"read":"owner","create":"owner","update":"owner","delete":"owner"}},
+    {"id":"user_settings","sourceTable":"user_settings","sourceMigration":"supabase/migrations/202611120001_user_privacy_settings.sql","permissions":{"read":"owner","create":"owner","update":"owner","delete":"owner"}},
+    {"id":"quota_threat_analysis_daily","sourceTable":"threat_analysis_usage","sourceMigration":"supabase/migrations/202611120002_threat_analysis_quota.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"function only"}},
+    {"id":"quota_url_reputation_daily","sourceTable":"url_reputation_usage","sourceMigration":"supabase/migrations/202611120003_url_reputation_quota.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"function only"}},
+    {"id":"quota_scam_intelligence_daily","sourceTable":"scam_intelligence_usage","sourceMigration":"supabase/migrations/202611120004_scam_intelligence_quota.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"function only"}},
+    {"id":"threat_lookup_cache","sourceTable":"threat_lookup_cache","sourceMigration":"supabase/migrations/202611120005_threat_intelligence.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"provider_usage_daily","sourceTable":"threat_provider_daily_usage","sourceMigration":"supabase/migrations/202611120005_threat_intelligence.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"scam_patterns","sourceTable":"scam_patterns","sourceMigration":"supabase/migrations/202611130001_unified_analysis.sql","permissions":{"read":"function only","create":"admin function","update":"admin function","delete":"admin function"}},
+    {"id":"detection_feedback","sourceTable":"detection_feedback","sourceMigration":"supabase/migrations/202611130001_unified_analysis.sql","permissions":{"read":"owner","create":"owner","update":"function only","delete":"owner"}},
+    {"id":"analysis_audit_logs","sourceTable":"analysis_audit_logs","sourceMigration":"supabase/migrations/202611130001_unified_analysis.sql","permissions":{"read":"administrators","create":"function only","update":"function only","delete":"none"}},
+    {"id":"local_threat_indicators","sourceTable":"local_threat_indicators","sourceMigration":"supabase/migrations/202611130003_independent_analysis.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"community_threat_reports","sourceTable":"community_threat_reports","sourceMigration":"supabase/migrations/202611130003_independent_analysis.sql","permissions":{"read":"owner and administrators","create":"owner","update":"administrator function","delete":"owner or administrator"}},
+    {"id":"scam_example_submissions","sourceTable":"example_submissions","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"owner and moderators","create":"authenticated user","update":"owner or moderator function","delete":"owner or moderator"}},
+    {"id":"scam_example_verifications","sourceTable":"example_verifications","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"moderators","create":"moderator function","update":"moderator function","delete":"administrator"}},
+    {"id":"scam_example_overrides","sourceTable":"example_admin_overrides","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"administrators","create":"administrator function","update":"administrator function","delete":"administrator"}},
+    {"id":"threat_dataset_versions","sourceTable":"dataset_versions","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"trusted roles","create":"administrator function","update":"administrator function","delete":"administrator"}},
+    {"id":"trusted_training_examples","sourceTable":"trusted_training_examples","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"trusted roles","create":"administrator function","update":"administrator function","delete":"administrator"}},
+    {"id":"intelligence_audit_logs","sourceTable":"intelligence_audit_logs","sourceMigration":"supabase/migrations/202611150003_trusted_scam_intelligence.sql","permissions":{"read":"trusted roles","create":"function only","update":"none","delete":"none"}},
+    {"id":"ai_usage_global_daily","sourceTable":"ai_global_daily_usage","sourceMigration":"supabase/migrations/202611170002_ai_provider_guardrails.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"ai_usage_user_daily","sourceTable":"ai_user_daily_usage","sourceMigration":"supabase/migrations/202611170002_ai_provider_guardrails.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"ai_usage_provider_daily","sourceTable":"ai_provider_daily_usage","sourceMigration":"supabase/migrations/202611170002_ai_provider_guardrails.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"ai_provider_runtime_state","sourceTable":"ai_provider_runtime_state","sourceMigration":"supabase/migrations/202611170002_ai_provider_guardrails.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"administrator"}},
+    {"id":"ai_request_deduplication","sourceTable":"ai_request_deduplication","sourceMigration":"supabase/migrations/202611170003_ai_request_dedup_cooldowns.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"ai_provider_attempt_leases","sourceTable":"ai_provider_attempt_leases","sourceMigration":"supabase/migrations/202611170003_ai_request_dedup_cooldowns.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"function or lease expiry"}},
+    {"id":"notification_processing_metadata","sourceTable":"notification_scan_idempotency","sourceMigration":"supabase/migrations/202611170005_notification_scan_idempotency.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"edge_request_windows","sourceTable":"edge_request_windows","sourceMigration":"supabase/migrations/202611230004_backend_hardening.sql","permissions":{"read":"server only","create":"function only","update":"function only","delete":"scheduled function"}},
+    {"id":"admin_audit_logs","sourceTable":"admin_audit_logs","sourceMigration":"supabase/migrations/202611230002_super_admin_panel.sql","permissions":{"read":"administrators","create":"admin function","update":"none","delete":"none"}},
+    {"id":"admin_account_deletion_requests","sourceTable":"admin_account_deletion_requests","sourceMigration":"supabase/migrations/202611230002_super_admin_panel.sql","permissions":{"read":"authorized administrators","create":"administrator function","update":"administrator function","delete":"none"}}
+  ],
+  "storage":[
+    {"id":"profile-avatars","sizeLimitBytes":5242880,"allowedMimeTypes":["image/jpeg","image/png","image/webp"],"permissions":"private by default; explicit owner/family permissions only"}
+  ],
+  "functions":[
+    {"id":"scam-intelligence","source":"supabase/functions/scam-intelligence","responsibilities":["scam and URL analysis","quota reservation","trusted intelligence","account lifecycle"]},
+    {"id":"family-invitations","source":"supabase/functions/family-invitations","responsibilities":["invite create/revoke/accept","family membership","invite quota"]},
+    {"id":"scheduled-maintenance","source":"supabase migration pg_cron equivalent","responsibilities":["scan history retention","notification metadata cleanup","cache cleanup"]}
+  ]
+}

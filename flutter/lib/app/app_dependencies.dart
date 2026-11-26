@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../core/storage/preferences_store.dart';
+import '../data/appwrite/appwrite_initializer.dart';
+import '../data/appwrite/appwrite_auth_data_source.dart';
+import '../data/repositories/appwrite_authentication_repository.dart';
 import '../data/datasources/supabase_auth_data_source.dart';
 import '../data/datasources/image_picker_profile_photo_data_source.dart';
 import '../data/repositories/supabase_authentication_repository.dart';
@@ -33,6 +35,32 @@ class AppDependencies {
           ImagePickerProfilePhotoDataSource(),
         ),
       ),
+      permissionPresenter: PermissionPresenter(
+        const AndroidPermissionRepository(),
+      ),
+    );
+  }
+
+  factory AppDependencies.fromAppwrite(
+    AppwriteClientProvider provider, {
+    SupabaseClient? supabaseClient,
+  }) {
+    final authenticationRepository = AppwriteAuthenticationRepository(
+      AppwriteAuthDataSource(provider.account),
+    );
+    final dashboardRepository = supabaseClient == null
+        ? null
+        : DashboardPresenter(
+            SupabaseDashboardRepository(supabaseClient),
+            preferencesStore: const SharedPreferencesStore(),
+            profilePhotoPickerRepository: ImagePickerProfilePhotoRepository(
+              ImagePickerProfilePhotoDataSource(),
+            ),
+          );
+    return AppDependencies(
+      supabaseConfigured: true,
+      authPresenter: AuthPresenter(authenticationRepository),
+      dashboardPresenter: dashboardRepository,
       permissionPresenter: PermissionPresenter(
         const AndroidPermissionRepository(),
       ),

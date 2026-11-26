@@ -44,4 +44,13 @@ return [
         'admin_password_reset_redirect' => env('SUPER_ADMIN_PASSWORD_RESET_REDIRECT_URL'),
     ],
 
+    'appwrite' => [
+        'endpoint' => env('APPWRITE_ENDPOINT', 'https://sgp.cloud.appwrite.io/v1'),
+        'project_id' => env('APPWRITE_PROJECT_ID'),
+        'api_key' => env('APPWRITE_API_KEY'),
+        'database_id' => env('APPWRITE_DATABASE_ID'),
+        'timeout' => (int) env('APPWRITE_TIMEOUT', 5),
+        'connect_timeout' => (int) env('APPWRITE_CONNECT_TIMEOUT', 2),
+    ],
+
 ];
