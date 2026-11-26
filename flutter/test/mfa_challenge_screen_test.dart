@@ -21,7 +21,7 @@ void main() {
           onVerifyCode: (factorId, challengeId, code) async {
             didVerify = true;
           },
-          onVerified: () {},
+          onVerified: () async {},
           onSignOut: () async {},
         ),
       ),
@@ -53,7 +53,7 @@ void main() {
             return 'totp-challenge';
           },
           onVerifyCode: (factorId, challengeId, code) async {},
-          onVerified: () {},
+          onVerified: () async {},
           onSignOut: () async {},
         ),
       ),
@@ -64,6 +64,71 @@ void main() {
     expect(requestedFactor, 'totp-factor');
     expect(find.text('Open authenticator app to get a code.'), findsOneWidget);
     expect(find.text('Six-digit authenticator code'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('waits for post-verification assurance recheck', (
+    WidgetTester tester,
+  ) async {
+    var sessionRechecked = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MfaChallengeScreen(
+          factors: const [
+            (id: 'totp-factor', label: 'authenticator app', isPhone: false),
+          ],
+          onRequestCode: (factorId) async => 'challenge',
+          onVerifyCode: (factorId, challengeId, code) async {},
+          onVerified: () async {
+            await Future<void>.delayed(Duration.zero);
+            sessionRechecked = true;
+          },
+          onSignOut: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('login-mfa-code')), '123456');
+    await tester.tap(find.byKey(const Key('verify-login-mfa')));
+    await tester.pumpAndSettle();
+
+    expect(sessionRechecked, isTrue);
+  });
+
+  testWidgets('blocks resend until the cooldown expires', (
+    WidgetTester tester,
+  ) async {
+    var codeRequests = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MfaChallengeScreen(
+          factors: const [
+            (id: 'totp-factor', label: 'authenticator app', isPhone: false),
+          ],
+          onRequestCode: (factorId) async {
+            codeRequests++;
+            return 'challenge-$codeRequests';
+          },
+          onVerifyCode: (factorId, challengeId, code) async {},
+          onVerified: () async {},
+          onSignOut: () async {},
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    final resendButton = find.byWidgetPredicate((widget) {
+      if (widget is! TextButton) return false;
+      final child = widget.child;
+      return child is Text && (child.data?.startsWith('Resend in') ?? false);
+    });
+    expect(codeRequests, 1);
+    expect(resendButton, findsOneWidget);
+    expect(tester.widget<TextButton>(resendButton).onPressed, isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

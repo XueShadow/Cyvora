@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:cyvora_mobile/features/authentication/models/authentication_repository.dart';
 import 'package:cyvora_mobile/features/authentication/presenters/auth_presenter.dart';
@@ -42,6 +43,74 @@ void main() {
     expect(result.errorMessage, 'Invalid credentials.');
   });
 
+  test('unexpected authentication errors are mapped to safe messages', () async {
+    final repository = _FakeAuthenticationRepository()
+      ..nextError = StateError('sensitive provider response');
+    final presenter = AuthPresenter(repository);
+
+    final result = await presenter.submit(
+      creatingAccount: false,
+      email: 'person@example.com',
+      password: 'StrongPass123!',
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(result.errorMessage, 'Authentication could not be completed. Try again.');
+    expect(result.errorMessage, isNot(contains('sensitive')));
+  });
+
+  test('password recovery request is generic and handles provider failures', () async {
+    final successRepository = _FakeAuthenticationRepository();
+    final success = await AuthPresenter(
+      successRepository,
+    ).requestPasswordReset('person@example.com');
+
+    expect(success.succeeded, isTrue);
+    expect(successRepository.passwordResetRequested, isTrue);
+
+    final failingRepository = _FakeAuthenticationRepository()
+      ..nextError = const AuthException(
+        'The account exists and has internal state.',
+        code: 'user_not_found',
+      );
+    final failure = await AuthPresenter(
+      failingRepository,
+    ).requestPasswordReset('person@example.com');
+
+    expect(failure.succeeded, isFalse);
+    expect(
+      failure.errorMessage,
+      'We could not process this request. Try again later.',
+    );
+    expect(failure.errorMessage, isNot(contains('account')));
+  });
+
+  test('password update reports success and maps expired recovery state', () async {
+    final successRepository = _FakeAuthenticationRepository();
+    final success = await AuthPresenter(
+      successRepository,
+    ).updatePassword('StrongPass123!');
+
+    expect(success.succeeded, isTrue);
+    expect(successRepository.passwordUpdated, isTrue);
+
+    final failingRepository = _FakeAuthenticationRepository()
+      ..nextError = const AuthException(
+        'sensitive recovery token detail',
+        code: 'flow_state_expired',
+      );
+    final failure = await AuthPresenter(
+      failingRepository,
+    ).updatePassword('StrongPass123!');
+
+    expect(failure.succeeded, isFalse);
+    expect(
+      failure.errorMessage,
+      contains('password-reset link is expired or invalid'),
+    );
+    expect(failure.errorMessage, isNot(contains('sensitive')));
+  });
+
   test('authentication validation preserves password requirements', () {
     expect(AuthenticationValidation.isValidEmail('person@example.com'), isTrue);
     expect(AuthenticationValidation.isValidEmail('person@localhost'), isFalse);
@@ -59,6 +128,8 @@ class _FakeAuthenticationRepository implements AuthenticationRepository {
   String? registeredName;
   String? termsVersion;
   String? privacyPolicyVersion;
+  bool passwordResetRequested = false;
+  bool passwordUpdated = false;
 
   void _throwPendingError() {
     final error = nextError;
@@ -120,8 +191,14 @@ class _FakeAuthenticationRepository implements AuthenticationRepository {
   Future<void> resendConfirmationEmail(String email) async {}
 
   @override
-  Future<void> requestPasswordReset(String email) async {}
+  Future<void> requestPasswordReset(String email) async {
+    _throwPendingError();
+    passwordResetRequested = true;
+  }
 
   @override
-  Future<void> updatePassword(String password) async {}
+  Future<void> updatePassword(String password) async {
+    _throwPendingError();
+    passwordUpdated = true;
+  }
 }

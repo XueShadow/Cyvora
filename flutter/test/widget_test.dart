@@ -535,7 +535,9 @@ void main() {
             expect(challengeId, 'challenge-1');
             verifiedCode = code;
           },
-          onVerified: () => didVerify = true,
+          onVerified: () async {
+            didVerify = true;
+          },
           onSignOut: _noopAsync,
         ),
       ),
@@ -2071,14 +2073,14 @@ void main() {
     );
   });
 
-  testWidgets('shows an enabled Remember Me option on login', (
+  testWidgets('does not show a nonfunctional Remember Me option', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MyApp(supabaseConfigured: false));
-    await tester.ensureVisible(find.byKey(const Key('remember-me')));
 
-    expect(find.text('Remember me'), findsOneWidget);
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+    expect(find.byKey(const Key('remember-me')), findsNothing);
+    expect(find.text('Remember me'), findsNothing);
+    expect(find.text('Forgot password?'), findsOneWidget);
   });
 
   testWidgets('validates required login fields', (WidgetTester tester) async {
@@ -2166,6 +2168,44 @@ void main() {
 
     expect(find.text('Enter your first name'), findsOneWidget);
     expect(find.text('Enter your last name'), findsOneWidget);
+  });
+
+  testWidgets('rejects password mismatch during account creation', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MyApp(supabaseConfigured: false));
+    await tester.tap(find.byKey(const Key('tab-Create Account')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('first-name-field')), 'Taylor');
+    await tester.enterText(find.byKey(const Key('last-name-field')), 'Example');
+    await tester.enterText(
+      find.byKey(const Key('email-field')),
+      'person@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'StrongPass123!',
+    );
+    await tester.enterText(
+      find.byKey(const Key('confirm-password-field')),
+      'AnotherPass123!',
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('policy-consent-checkbox')),
+    );
+    await tester.tap(find.byKey(const Key('policy-consent-checkbox')));
+    await tester.ensureVisible(find.byKey(const Key('submit-auth')));
+    await tester.tap(find.byKey(const Key('submit-auth')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Passwords do not match'), findsOneWidget);
+    expect(
+      find.text(
+        'Configure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to sign in.',
+      ),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 

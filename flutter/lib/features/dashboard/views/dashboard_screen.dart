@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/errors/authentication_error_message.dart';
 import '../../../core/permissions/message_notification_service.dart';
 import '../../../data/datasources/screenshot_text_extractor.dart';
 import '../../../data/repositories/android_permission_repository.dart';
@@ -2013,10 +2014,19 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       await widget.presenter.deleteAccount();
       if (mounted) _showMessage('Account deleted.');
-      await widget.onSignOut();
-    } on Exception catch (error) {
+      try {
+        await widget.onSignOut();
+      } on Object catch (error) {
+        if (mounted) {
+          _showMessage(
+            'Account deleted, but sign-out could not be completed: '
+            '${authenticationErrorFrom(error, operation: AuthenticationOperation.signOut).message}',
+          );
+        }
+      }
+    } on Exception {
       if (mounted) {
-        _showMessage('Could not delete your account: $error');
+        _showMessage('Could not delete your account. Try again later.');
       }
     }
   }
@@ -2107,8 +2117,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _signOut() async {
     try {
       await widget.onSignOut();
-    } on Exception catch (error) {
-      if (mounted) _showMessage('Could not sign out: $error');
+    } on Object catch (error) {
+      if (mounted) {
+        _showMessage(
+          authenticationErrorFrom(
+            error,
+            operation: AuthenticationOperation.signOut,
+          ).message,
+        );
+      }
     }
   }
 

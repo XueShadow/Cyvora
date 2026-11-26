@@ -23,6 +23,21 @@ class AuthenticationState {
 
 typedef AuthenticationFactor = ({String id, String label, bool isPhone});
 
+enum AuthenticationErrorReason {
+  generic,
+  invalidCredentials,
+  emailNotConfirmed,
+  expiredRecoveryLink,
+  invalidCallback,
+  rateLimited,
+  networkUnavailable,
+  serviceUnavailable,
+  sessionExpired,
+  weakPassword,
+  invalidMfaCode,
+  expiredMfaChallenge,
+}
+
 class MfaSessionState {
   const MfaSessionState({
     required this.requiresChallenge,
@@ -76,9 +91,13 @@ abstract interface class AuthenticationRepository {
 }
 
 class AuthenticationException implements Exception {
-  const AuthenticationException(this.message);
+  const AuthenticationException(
+    this.message, {
+    this.reason = AuthenticationErrorReason.generic,
+  });
 
   final String message;
+  final AuthenticationErrorReason reason;
 
   @override
   String toString() => message;

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/errors/authentication_error_message.dart';
 import '../../features/authentication/models/authentication_repository.dart';
 import '../datasources/supabase_auth_data_source.dart';
 
@@ -14,8 +15,15 @@ class SupabaseAuthenticationRepository implements AuthenticationRepository {
       await for (final state in _dataSource.authStateChanges) {
         yield _mapAuthState(state);
       }
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
+    } on Object catch (error) {
+      logAuthenticationFailure(
+        error,
+        operation: AuthenticationOperation.session,
+      );
+      throw authenticationErrorFrom(
+        error,
+        operation: AuthenticationOperation.session,
+      );
     }
   }
 
@@ -46,56 +54,42 @@ class SupabaseAuthenticationRepository implements AuthenticationRepository {
   @override
   Future<MfaSessionState> loadMfaSessionState({
     required bool isPrivilegedAdmin,
-  }) async {
-    try {
-      return await _dataSource.loadMfaSessionState(
-        isPrivilegedAdmin: isPrivilegedAdmin,
-      );
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    }
-  }
+  }) => _run(
+    AuthenticationOperation.session,
+    () => _dataSource.loadMfaSessionState(
+      isPrivilegedAdmin: isPrivilegedAdmin,
+    ),
+  );
 
   @override
   Future<String> requestMfaCode({
     required String factorId,
     required bool isPhone,
-  }) async {
-    try {
-      return await _dataSource.requestMfaCode(
-        factorId: factorId,
-        isPhone: isPhone,
-      );
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    }
-  }
+  }) => _run(
+    AuthenticationOperation.mfaChallenge,
+    () => _dataSource.requestMfaCode(
+      factorId: factorId,
+      isPhone: isPhone,
+    ),
+  );
 
   @override
   Future<void> verifyMfaCode({
     required String factorId,
     required String challengeId,
     required String code,
-  }) async {
-    try {
-      await _dataSource.verifyMfaCode(
-        factorId: factorId,
-        challengeId: challengeId,
-        code: code,
-      );
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    }
-  }
+  }) => _run(
+    AuthenticationOperation.mfaVerification,
+    () => _dataSource.verifyMfaCode(
+      factorId: factorId,
+      challengeId: challengeId,
+      code: code,
+    ),
+  );
 
   @override
-  Future<void> signOut() async {
-    try {
-      await _dataSource.signOut();
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    }
-  }
+  Future<void> signOut() =>
+      _run(AuthenticationOperation.signOut, _dataSource.signOut);
 
   @override
   Future<bool> signUp({
@@ -105,66 +99,52 @@ class SupabaseAuthenticationRepository implements AuthenticationRepository {
     required String lastName,
     required String termsVersion,
     required String privacyPolicyVersion,
-  }) async {
-    try {
-      return await _dataSource.signUp(
-        email: email,
-        password: password,
-        firstName: firstName,
-        lastName: lastName,
-        termsVersion: termsVersion,
-        privacyPolicyVersion: privacyPolicyVersion,
+  }) => _run(
+    AuthenticationOperation.signUp,
+    () => _dataSource.signUp(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      termsVersion: termsVersion,
+      privacyPolicyVersion: privacyPolicyVersion,
+    ),
+  );
+
+  @override
+  Future<void> signIn({required String email, required String password}) =>
+      _run(
+        AuthenticationOperation.signIn,
+        () => _dataSource.signIn(email: email, password: password),
       );
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    } on Exception catch (error) {
-      throw AuthenticationException('Could not connect to Supabase: $error');
-    }
-  }
 
   @override
-  Future<void> signIn({required String email, required String password}) async {
-    try {
-      await _dataSource.signIn(email: email, password: password);
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    } on Exception catch (error) {
-      throw AuthenticationException('Could not connect to Supabase: $error');
-    }
-  }
+  Future<void> resendConfirmationEmail(String email) => _run(
+    AuthenticationOperation.confirmationEmail,
+    () => _dataSource.resendConfirmationEmail(email),
+  );
 
   @override
-  Future<void> resendConfirmationEmail(String email) async {
-    try {
-      await _dataSource.resendConfirmationEmail(email);
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    } on Exception catch (error) {
-      throw AuthenticationException(
-        'Could not request a confirmation email: $error',
-      );
-    }
-  }
+  Future<void> requestPasswordReset(String email) => _run(
+    AuthenticationOperation.passwordReset,
+    () => _dataSource.requestPasswordReset(email),
+  );
 
   @override
-  Future<void> requestPasswordReset(String email) async {
-    try {
-      await _dataSource.requestPasswordReset(email);
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    } on Exception catch (error) {
-      throw AuthenticationException('Could not connect to Supabase: $error');
-    }
-  }
+  Future<void> updatePassword(String password) => _run(
+    AuthenticationOperation.updatePassword,
+    () => _dataSource.updatePassword(password),
+  );
 
-  @override
-  Future<void> updatePassword(String password) async {
+  Future<T> _run<T>(
+    AuthenticationOperation operation,
+    Future<T> Function() action,
+  ) async {
     try {
-      await _dataSource.updatePassword(password);
-    } on AuthException catch (error) {
-      throw AuthenticationException(error.message);
-    } on Exception catch (error) {
-      throw AuthenticationException('Could not update your password: $error');
+      return await action();
+    } on Object catch (error) {
+      logAuthenticationFailure(error, operation: operation);
+      throw authenticationErrorFrom(error, operation: operation);
     }
   }
 }

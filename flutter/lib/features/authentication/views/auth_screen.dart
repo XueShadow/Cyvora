@@ -268,7 +268,6 @@ class _AuthScreenState extends State<AuthScreen>
   final _confirmPasswordController = TextEditingController();
   bool _isCreatingAccount = false;
   bool _isPasswordVisible = false;
-  bool _rememberMe = true;
   bool _isBusy = false;
   String? _confirmationEmail;
 
@@ -305,6 +304,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _submit() async {
+    if (_isBusy) return;
     if (!_formKey.currentState!.validate()) return;
     if (!widget.supabaseConfigured) {
       _showMessage(
@@ -339,6 +339,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _resendConfirmationEmail(String email) async {
+    if (_isBusy) return;
     if (!widget.supabaseConfigured) {
       _showMessage(
         'Configure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to resend confirmation.',
@@ -367,6 +368,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _sendPasswordReset() async {
+    if (_isBusy) return;
     if (!widget.supabaseConfigured) {
       _showMessage(
         'Configure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to reset a password.',
@@ -374,60 +376,60 @@ class _AuthScreenState extends State<AuthScreen>
       return;
     }
 
-    final controller = TextEditingController(
-      text: _emailController.text.trim(),
-    );
-    final email = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset your password'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.emailAddress,
-          autofocus: true,
-          autofillHints: const [AutofillHints.email],
-          decoration: const InputDecoration(
-            labelText: 'Email address',
-            prefixIcon: Icon(Icons.email_outlined),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Send link'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-
-    if (email == null) return;
-    final normalizedEmail = email.trim();
-    if (!AuthenticationValidation.isValidEmail(normalizedEmail)) {
-      _showMessage('Enter a valid email address to reset your password.');
-      return;
-    }
     final presenter = widget.presenter;
     if (presenter == null) {
       _showMessage('Authentication services are unavailable.');
       return;
     }
 
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
     setState(() => _isBusy = true);
     try {
+      final email = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Reset your password'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            autofillHints: const [AutofillHints.email],
+            decoration: const InputDecoration(
+              labelText: 'Email address',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('Send link'),
+            ),
+          ],
+        ),
+      );
+      if (email == null) return;
+      final normalizedEmail = email.trim();
+      if (!AuthenticationValidation.isValidEmail(normalizedEmail)) {
+        _showMessage('Enter a valid email address to reset your password.');
+        return;
+      }
+
       final result = await presenter.requestPasswordReset(normalizedEmail);
       if (result.succeeded) {
         _showMessage(
-          'If an account exists, a password reset link is on its way.',
+          'If an account exists for this address, follow the reset instructions if you receive an email.',
         );
       } else {
         _showMessage(result.errorMessage!);
       }
     } finally {
+      controller.dispose();
       if (mounted) setState(() => _isBusy = false);
     }
   }
@@ -834,37 +836,6 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
-                final rememberOption = InkWell(
-                  key: const Key('remember-me'),
-                  borderRadius: BorderRadius.circular(6),
-                  onTap: () => setState(() => _rememberMe = !_rememberMe),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 23,
-                        height: 23,
-                        child: Checkbox(
-                          value: _rememberMe,
-                          onChanged: (value) =>
-                              setState(() => _rememberMe = value ?? false),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Remember me',
-                        style: TextStyle(
-                          color: _navy,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
                 final forgotPasswordButton = TextButton(
                   onPressed: _isBusy ? null : _sendPasswordReset,
                   style: TextButton.styleFrom(
@@ -883,15 +854,15 @@ class _AuthScreenState extends State<AuthScreen>
                 );
 
                 if (constraints.maxWidth < 360) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [rememberOption, forgotPasswordButton],
+                  return Align(
+                    alignment: Alignment.centerRight,
+                    child: forgotPasswordButton,
                   );
                 }
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [rememberOption, forgotPasswordButton],
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: forgotPasswordButton,
                 );
               },
             ),
@@ -1348,7 +1319,7 @@ class EmailConfirmationScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 12),
                                 const Text(
-                                  'If email confirmation is enabled, a confirmation link will be sent to',
+                                  'If email confirmation is required, check for a confirmation email at',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: _muted,
@@ -1369,7 +1340,7 @@ class EmailConfirmationScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 14),
                                 const Text(
-                                  'Open the email and follow its link to verify your address and activate your Cyvora account. If it does not arrive, check your spam folder or request another email below.',
+                                  'If you receive the confirmation email, open it and follow its link to verify your address. If no email arrives, check your spam folder or request another email below.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: _muted,

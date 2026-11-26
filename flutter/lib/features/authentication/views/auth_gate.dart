@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/errors/authentication_error_message.dart';
 import '../../dashboard/views/dashboard_screen.dart' as dashboard;
 import '../../dashboard/presenters/dashboard_presenter.dart';
 import '../../permissions/presenters/permission_presenter.dart';
@@ -29,8 +30,7 @@ class AuthGate extends StatelessWidget {
         if (snapshot.hasError) {
           final error = snapshot.error;
           if (error is AuthenticationException &&
-              error.message ==
-                  'Code verifier could not be found in local storage.') {
+              error.reason == AuthenticationErrorReason.invalidCallback) {
             return AuthCallbackRecoveryScreen(presenter: authPresenter);
           }
 
@@ -38,7 +38,13 @@ class AuthGate extends StatelessWidget {
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Authentication error: ${snapshot.error}'),
+                child: Text(
+                  authenticationErrorFrom(
+                    error ?? StateError('Authentication stream failed.'),
+                    operation: AuthenticationOperation.session,
+                  ).message,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           );
@@ -63,6 +69,7 @@ class AuthGate extends StatelessWidget {
             trustedRole == 'support_admin';
         return _MfaSessionGate(
           key: ValueKey(user.id),
+          authState: snapshot.data!,
           isPrivilegedAdmin: isTrustedAdmin,
           presenter: authPresenter,
           child: dashboard.DashboardScreen(
@@ -90,12 +97,14 @@ class AuthGate extends StatelessWidget {
 class _MfaSessionGate extends StatefulWidget {
   const _MfaSessionGate({
     required this.child,
+    required this.authState,
     required this.isPrivilegedAdmin,
     required this.presenter,
     super.key,
   });
 
   final Widget child;
+  final AuthenticationState authState;
   final bool isPrivilegedAdmin;
   final AuthPresenter presenter;
 
@@ -107,7 +116,8 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
   bool _isLoading = true;
   bool _requiresChallenge = false;
   List<AuthenticationFactor> _factors = const [];
-  Object? _error;
+  String? _error;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -115,7 +125,17 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
     _loadMfaState();
   }
 
+  @override
+  void didUpdateWidget(covariant _MfaSessionGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.authState != widget.authState) {
+      _loadMfaState();
+    }
+  }
+
   Future<void> _loadMfaState() async {
+    final generation = ++_loadGeneration;
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -124,16 +144,25 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
       final mfaState = await widget.presenter.loadMfaSessionState(
         isPrivilegedAdmin: widget.isPrivilegedAdmin,
       );
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _requiresChallenge = mfaState.requiresChallenge;
           _factors = mfaState.factors;
         });
       }
-    } on Exception catch (error) {
-      if (mounted) setState(() => _error = error);
+    } on Object catch (error) {
+      if (mounted && generation == _loadGeneration) {
+        setState(
+          () => _error = authenticationErrorFrom(
+            error,
+            operation: AuthenticationOperation.session,
+          ).message,
+        );
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -157,6 +186,23 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
     );
   }
 
+  Future<void> _onVerified() => _loadMfaState();
+
+  Future<void> _signOut() async {
+    try {
+      await widget.presenter.signOut();
+    } on Object catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = authenticationErrorFrom(
+            error,
+            operation: AuthenticationOperation.signOut,
+          ).message,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -176,14 +222,14 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                Text('Details: $_error', textAlign: TextAlign.center),
+                Text(_error!, textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: _loadMfaState,
                   child: const Text('Try again'),
                 ),
                 TextButton(
-                  onPressed: widget.presenter.signOut,
+                  onPressed: _signOut,
                   child: const Text('Sign out'),
                 ),
               ],
@@ -197,8 +243,8 @@ class _MfaSessionGateState extends State<_MfaSessionGate> {
       factors: _factors,
       onRequestCode: _requestCode,
       onVerifyCode: _verifyCode,
-      onVerified: () => setState(() => _requiresChallenge = false),
-      onSignOut: widget.presenter.signOut,
+      onVerified: _onVerified,
+      onSignOut: _signOut,
     );
   }
 }
@@ -249,10 +295,10 @@ class _AuthCallbackRecoveryScreenState
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'The confirmation link returned, but this browser could not '
-                  'finish secure sign-in. Your email may already be confirmed. '
-                  'Continue to sign in; if it is not confirmed, request a new '
-                  'link and open it in the same browser where you signed up.',
+                  'This email link could not be securely completed in this '
+                  'browser. Request a new confirmation or password-reset link '
+                  'and open it in the same browser where you started. You can '
+                  'continue to sign in or use Forgot password to restart recovery.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Color(0xFFC4B5FD), height: 1.55),
                 ),
@@ -299,6 +345,7 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
   }
 
   Future<void> _updatePassword() async {
+    if (_isBusy) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isBusy = true);
@@ -317,15 +364,22 @@ class _PasswordRecoveryScreenState extends State<_PasswordRecoveryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Password updated successfully. Please sign in again.',
+              'Password updated successfully.',
             ),
           ),
         );
       }
-    } on Exception catch (error) {
+    } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update your password: $error')),
+          SnackBar(
+            content: Text(
+              authenticationErrorFrom(
+                error,
+                operation: AuthenticationOperation.updatePassword,
+              ).message,
+            ),
+          ),
         );
       }
     } finally {

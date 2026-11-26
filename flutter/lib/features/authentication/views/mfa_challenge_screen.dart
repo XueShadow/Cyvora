@@ -19,7 +19,7 @@ class MfaChallengeScreen extends StatefulWidget {
   final Future<String> Function(String factorId) onRequestCode;
   final Future<void> Function(String factorId, String challengeId, String code)
   onVerifyCode;
-  final VoidCallback onVerified;
+  final Future<void> Function() onVerified;
   final Future<void> Function() onSignOut;
 
   @override
@@ -72,6 +72,7 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
   Future<void> _sendCode() async {
     final factorId = _selectedFactorId;
     if (factorId == null) return;
+    if (_isVerifying || (_isSending && _challengeId != null)) return;
     if (_challengeId != null && _isResendBlocked) return;
     setState(() {
       _isSending = true;
@@ -87,7 +88,7 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
         });
         _startResendCooldown();
       }
-    } on Exception catch (error) {
+    } on Object catch (error) {
       if (mounted) setState(() => _error = mfaErrorMessage(error));
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -95,6 +96,7 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
   }
 
   Future<void> _verifyCode() async {
+    if (_isSending || _isVerifying) return;
     if (!_formKey.currentState!.validate()) return;
     final factorId = _selectedFactorId;
     final challengeId = _challengeId;
@@ -109,8 +111,8 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
         challengeId,
         _codeController.text.trim(),
       );
-      if (mounted) widget.onVerified();
-    } on Exception catch (error) {
+      if (mounted) await widget.onVerified();
+    } on Object catch (error) {
       if (mounted) setState(() => _error = mfaErrorMessage(error));
     } finally {
       if (mounted) setState(() => _isVerifying = false);
@@ -131,10 +133,11 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
   }
 
   Future<void> _signOut() async {
+    if (_isSigningOut) return;
     setState(() => _isSigningOut = true);
     try {
       await widget.onSignOut();
-    } on Exception catch (error) {
+    } on Object catch (error) {
       if (mounted) {
         setState(() {
           _error = mfaErrorMessage(error);
